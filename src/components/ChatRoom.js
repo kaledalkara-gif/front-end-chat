@@ -89,22 +89,22 @@ const ChatRoom = () => {
     }, [messages]);
 
     // Add this useEffect in ChatRoom.js, near the other useEffects
-    useEffect(() => {
-        // Detect mobile
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // useEffect(() => {
+    //     // Detect mobile
+    //     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-        if (isMobile) {
-            // Ensure video elements have playsinline attribute
-            if (localVideoRef.current) {
-                localVideoRef.current.setAttribute('playsinline', 'true');
-                localVideoRef.current.setAttribute('webkit-playsinline', 'true');
-            }
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.setAttribute('playsinline', 'true');
-                remoteVideoRef.current.setAttribute('webkit-playsinline', 'true');
-            }
-        }
-    }, [callState, isInCall]);
+    //     if (isMobile) {
+    //         // Ensure video elements have playsinline attribute
+    //         if (localVideoRef.current) {
+    //             localVideoRef.current.setAttribute('playsinline', 'true');
+    //             localVideoRef.current.setAttribute('webkit-playsinline', 'true');
+    //         }
+    //         if (remoteVideoRef.current) {
+    //             remoteVideoRef.current.setAttribute('playsinline', 'true');
+    //             remoteVideoRef.current.setAttribute('webkit-playsinline', 'true');
+    //         }
+    //     }
+    // }, [callState, isInCall]);
 
     // ============ CALL HANDLERS ============
 
