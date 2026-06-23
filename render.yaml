@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: secure-chat-web
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_SIGNALING_SERVER
+        value: https://secure-chat-backend-b0qd.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

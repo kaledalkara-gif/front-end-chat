@@ -1,6 +1,6 @@
 import io from 'socket.io-client';
 
-const SIGNALING_SERVER = 'http://localhost:3000';
+const SIGNALING_SERVER = process.env.REACT_APP_SIGNALING_SERVER || 'http://localhost:3000';
 
 class WebRTCService {
     constructor() {
