@@ -577,7 +577,7 @@ const ChatRoom = () => {
                                                             style={{
                                                                 width: '100%',
                                                                 aspectRatio: '1',
-                                                                fontSize: 'clamp(16px, 3vw, 22px)',
+                                                                fontSize: 'clamp(18px, 3.5vw, 24px)',
                                                                 border: 'none',
                                                                 borderRadius: '8px',
                                                                 background: 'transparent',
