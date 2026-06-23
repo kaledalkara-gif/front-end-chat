@@ -17,6 +17,7 @@ const ChatRoom = () => {
     const [localSize, setLocalSize] = useState(0.5); // 0.5 = 50% each
     const [callHeight, setCallHeight] = useState(40);
     const [showEmojis, setShowEmojis] = useState(false);
+    const [connectionState, setConnectionState] = useState('disconnected');
     const webrtcService = useRef(null);
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);

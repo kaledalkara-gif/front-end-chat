@@ -28,7 +28,6 @@ class WebRTCService {
         this.socket = io(SIGNALING_SERVER, {
             path: '/socket.io/',
             transports: ['websocket'],
-            // Add these settings:
             reconnection: true,
             reconnectionAttempts: 10,
             reconnectionDelay: 1000,
@@ -124,24 +123,16 @@ class WebRTCService {
             this.pc.close();
         }
 
-        this.pc = new RTCPeerConnection(configuration);
-
-        // Add ICE connection state handling
-        this.pc.oniceconnectionstatechange = () => {
-            console.log('🧊 ICE state:', this.pc?.iceConnectionState);
-
-            // Auto-restart ICE if disconnected
-            if (this.pc?.iceConnectionState === 'disconnected') {
-                console.log('🔄 ICE disconnected, attempting restart...');
-                this.pc?.restartIce();
-            }
-
-            if (this.pc?.iceConnectionState === 'failed') {
-                console.log('❌ ICE failed, reconnecting...');
-                // End current call and notify user
-                this.onCallEnded?.();
-            }
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+            ],
+            iceTransportPolicy: 'all',
+            iceCandidatePoolSize: 2,
         };
+
+        this.pc = new RTCPeerConnection(configuration);
 
         this.pc.onicecandidate = (event) => {
             if (event.candidate) {
@@ -150,18 +141,12 @@ class WebRTCService {
         };
 
         this.pc.ontrack = (event) => {
-            console.log('📹 Remote track:', event.track.kind, event.streams.length);
-
-            // If we already have a remote stream, add the track to it
+            console.log('📹 Remote track:', event.track.kind);
             if (this.remoteStream) {
-                console.log('➕ Adding track to existing remote stream');
                 this.remoteStream.addTrack(event.track);
             } else if (event.streams[0]) {
-                console.log('📥 New remote stream');
                 this.remoteStream = event.streams[0];
             }
-
-            // Notify UI about the stream
             if (this.remoteStream) {
                 this.onRemoteStream?.(this.remoteStream);
             }
@@ -172,7 +157,29 @@ class WebRTCService {
             this.onConnectionStateChange?.(this.pc?.connectionState);
         };
 
-        console.log('🔨 PeerConnection created');
+        // Add ICE connection state handling
+        this.pc.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE state:', this.pc?.iceConnectionState);
+
+            if (this.pc?.iceConnectionState === 'disconnected') {
+                console.log('🔄 ICE disconnected, attempting restart...');
+                this.pc?.restartIce();
+            }
+
+            if (this.pc?.iceConnectionState === 'failed') {
+                console.log('❌ ICE failed');
+                this.onCallEnded?.();
+            }
+        };
+
+        // Add local tracks if available
+        if (this.localStream) {
+            this.localStream.getTracks().forEach((track) => {
+                if (track.readyState === 'live') {
+                    this.pc.addTrack(track, this.localStream);
+                }
+            });
+        }
     }
 
     addLocalTracks() {
