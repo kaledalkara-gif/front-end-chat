@@ -28,6 +28,14 @@ class WebRTCService {
         this.socket = io(SIGNALING_SERVER, {
             path: '/socket.io/',
             transports: ['websocket'],
+            // Add these settings:
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 60000,
+            pingInterval: 10000,
+            pingTimeout: 60000,
         });
 
         this.socket.on('connect', () => console.log('🟢 Connected:', this.socket.id));
@@ -116,11 +124,24 @@ class WebRTCService {
             this.pc.close();
         }
 
-        this.pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-            ],
-        });
+        this.pc = new RTCPeerConnection(configuration);
+
+        // Add ICE connection state handling
+        this.pc.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE state:', this.pc?.iceConnectionState);
+
+            // Auto-restart ICE if disconnected
+            if (this.pc?.iceConnectionState === 'disconnected') {
+                console.log('🔄 ICE disconnected, attempting restart...');
+                this.pc?.restartIce();
+            }
+
+            if (this.pc?.iceConnectionState === 'failed') {
+                console.log('❌ ICE failed, reconnecting...');
+                // End current call and notify user
+                this.onCallEnded?.();
+            }
+        };
 
         this.pc.onicecandidate = (event) => {
             if (event.candidate) {

@@ -70,6 +70,15 @@ const ChatRoom = () => {
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         };
 
+        service.onConnectionStateChange = (state) => {
+            setConnectionState(state);
+
+            // Show reconnecting message
+            if (state === 'disconnected' || state === 'failed') {
+                // Auto-reconnect handled by Socket.IO
+            }
+        };
+
         service.connect();
         return () => service.disconnect();
     }, []);
