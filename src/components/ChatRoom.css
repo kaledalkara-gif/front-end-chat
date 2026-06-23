@@ -1,0 +1,145 @@
+/* Video Container - Make it VERY visible */
+.video-container {
+    display: flex !important;
+    gap: 12px;
+    padding: 16px;
+    background: #000 !important;
+    border: 3px solid #ff0000 !important;
+    /* Red border to make it obvious */
+    min-height: 250px;
+    width: 100%;
+}
+
+.local-video-wrapper,
+.remote-video-wrapper {
+    flex: 1;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #333;
+    border: 2px solid #00ff00;
+    /* Green border to see the containers */
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #111;
+}
+
+.video-label {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: bold;
+    z-index: 10;
+}
+
+/* Audio Only Indicator */
+.audio-only-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    min-height: 200px;
+}
+
+.audio-wave {
+    font-size: 64px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.3);
+    }
+}
+
+/* Active Media Indicator */
+.media-indicator {
+    background: #4caf50;
+    color: white;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.media-indicator .dot {
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Permission Help */
+.permission-help {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 16px;
+    margin: 12px;
+    border-radius: 8px;
+    color: #856404;
+}
+
+.permission-help p {
+    margin: 4px 0;
+    font-size: 14px;
+}
+
+.status-banner {
+    background: #2196f3;
+    color: white;
+    padding: 12px 20px;
+    text-align: center;
+    animation: fadeIn 0.3s ease-in;
+    font-weight: 500;
+}
