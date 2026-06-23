@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
+import './ChatRoom.css';
 
 const ChatRoom = () => {
     const [messages, setMessages] = useState([]);
@@ -27,26 +28,14 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            console.log('📥 Setting remote video');
             if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = stream;
             }
         };
 
-        service.onRoomCreated = (id) => {
-            setRoomId(id);
-            setRoomCreated(true);
-        };
-
-        service.onRoomJoined = (id) => {
-            setRoomId(id);
-            setIsConnected(true);
-            setRoomCreated(true);
-        };
-
-        service.onPeerJoined = () => {
-            setIsConnected(true);
-        };
+        service.onRoomCreated = (id) => { setRoomId(id); setRoomCreated(true); };
+        service.onRoomJoined = (id) => { setRoomId(id); setIsConnected(true); setRoomCreated(true); };
+        service.onPeerJoined = () => setIsConnected(true);
 
         service.onIncomingCall = (type) => {
             setIncomingCallType(type);
@@ -54,8 +43,6 @@ const ChatRoom = () => {
         };
 
         service.onCallAccepted = () => {
-            // Initiator: peer accepted, now create offer
-            console.log('📤 Peer accepted, triggering offer...');
             webrtcService.current?.onAcceptedByPeer();
             setCallState('in-call');
         };
@@ -80,9 +67,7 @@ const ChatRoom = () => {
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
         };
 
-        service.onError = (msg) => console.error(msg);
         service.connect();
-
         return () => service.disconnect();
     }, []);
 
@@ -90,22 +75,17 @@ const ChatRoom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ============ CALL ACTIONS ============
+    // ============ CALL HANDLERS ============
 
     const handleStartCall = async (type) => {
-        console.log('📞 Starting call:', type);
         setCallType(type);
         setCallState('requesting');
-
         try {
             await webrtcService.current?.startCall(type);
-
-            // Show local video
             if (localVideoRef.current && webrtcService.current?.localStream) {
                 localVideoRef.current.srcObject = webrtcService.current.localStream;
             }
         } catch (err) {
-            console.error('Failed to start call:', err);
             setCallState('idle');
         }
     };
@@ -113,36 +93,16 @@ const ChatRoom = () => {
     const handleAcceptCall = async () => {
         const type = incomingCallType || 'video';
         setCallType(type);
-
         try {
-            // 1. Get local media first
             await webrtcService.current?.acceptIncomingCall(type);
-
-            // 2. Update state to show video area
             setCallState('in-call');
             setIncomingCallType(null);
-
-            // 3. Wait for React to render the video element, THEN set the stream
             setTimeout(() => {
-                const stream = webrtcService.current?.localStream;
-                console.log('🎥 Setting local video on receiver. Stream:', !!stream, 'Ref:', !!localVideoRef.current);
-                if (localVideoRef.current && stream) {
-                    localVideoRef.current.srcObject = stream;
-                    console.log('✅ Local video set on receiver!');
-                } else {
-                    console.log('❌ Failed - Stream:', !!stream, 'Ref:', !!localVideoRef.current);
-                    // Retry once more
-                    setTimeout(() => {
-                        if (localVideoRef.current && stream) {
-                            localVideoRef.current.srcObject = stream;
-                            console.log('✅ Local video set on retry');
-                        }
-                    }, 500);
+                if (localVideoRef.current && webrtcService.current?.localStream) {
+                    localVideoRef.current.srcObject = webrtcService.current.localStream;
                 }
             }, 300);
-
         } catch (err) {
-            console.error('Failed to accept:', err);
             setCallState('idle');
             setIncomingCallType(null);
         }
@@ -179,151 +139,173 @@ const ChatRoom = () => {
     };
 
     const isInCall = callState === 'in-call' || callState === 'requesting';
+    const statusClass = isInCall ? 'in-call' : isConnected ? 'connected' : roomCreated ? 'waiting' : 'ready';
+    const statusText = isInCall ? '📹 In Call' : isConnected ? 'Connected' : roomCreated ? 'Waiting for partner' : 'Ready';
+
+    // ============ RENDER ============
 
     return (
-        <div style={{ padding: '10px', fontFamily: 'Arial', maxWidth: '900px', margin: '0 auto' }}>
-            <h2>🔒 Secure Chat {roomId && <span style={{ color: '#666', fontSize: '16px' }}>- Room: {roomId}</span>}</h2>
+        <div className="chat-app">
+            {/* Header */}
+            <header className="app-header">
+                <h1>🔒 Secure Chat</h1>
+                {roomId && <span className="room-badge">Room: {roomId}</span>}
+            </header>
 
-            <div style={{
-                background: isConnected ? '#4caf50' : roomCreated ? '#ff9800' : '#2196f3',
-                color: 'white', padding: '8px 15px', marginBottom: '10px', borderRadius: '5px',
-                display: 'flex', gap: '15px', flexWrap: 'wrap'
-            }}>
-                <span>{isConnected ? '🟢 Connected' : roomCreated ? '🟡 Waiting' : '🔵 Ready'}</span>
-                {callState === 'in-call' && <span>📹 In Call</span>}
+            {/* Status Bar */}
+            <div className={`status-bar ${statusClass}`}>
+                <span className="status-dot"></span>
+                <span>{statusText}</span>
                 {callState === 'requesting' && <span>📞 Calling...</span>}
-                {callState === 'ringing' && <span>📞 Incoming!</span>}
+                {callState === 'ringing' && <span>📞 Incoming call!</span>}
             </div>
 
-            {/* Incoming Call Popup */}
+            {/* Incoming Call Modal */}
             {callState === 'ringing' && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div style={{ background: 'white', padding: '40px', borderRadius: '20px', textAlign: 'center' }}>
-                        <div style={{ fontSize: '60px' }}>{incomingCallType === 'video' ? '📹' : '🎤'}</div>
-                        <h2>Incoming {incomingCallType} Call</h2>
-                        <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px' }}>
-                            <button onClick={handleAcceptCall} style={btn('#4caf50')}>✅ Accept</button>
-                            <button onClick={handleRejectCall} style={btn('#f44336')}>❌ Reject</button>
+                <div className="call-modal-overlay">
+                    <div className="call-modal">
+                        <div className="call-modal-icon">
+                            {incomingCallType === 'video' ? '📹' : '🎤'}
+                        </div>
+                        <h2>Incoming {incomingCallType === 'video' ? 'Video' : 'Voice'} Call</h2>
+                        <p>Your partner wants to start a call</p>
+                        <div className="call-modal-actions">
+                            <button onClick={handleAcceptCall} className="btn btn-success btn-lg">✅ Accept</button>
+                            <button onClick={handleRejectCall} className="btn btn-danger btn-lg">❌ Reject</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Video Area */}
-            {/* Video Area */}
-            {isInCall && (
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', minHeight: '250px', border: '3px solid #333', padding: '8px', background: '#000', borderRadius: '8px' }}>
-                    {/* Local */}
-                    <div style={{ flex: 1, position: 'relative', background: '#222', borderRadius: '5px', overflow: 'hidden' }}>
-                        {callType === 'video' ? (
-                            <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white', fontSize: '50px', flexDirection: 'column' }}>
-                                <div>🎤</div>
-                                <div style={{ fontSize: '14px', marginTop: '10px' }}>Microphone active</div>
-                            </div>
-                        )}
-                        <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '12px' }}>YOU</div>
-                    </div>
-
-                    {/* Remote */}
-                    <div style={{ flex: 1, position: 'relative', background: '#222', borderRadius: '5px', overflow: 'hidden' }}>
-                        {callType === 'video' ? (
-                            <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                            <>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#4caf50', fontSize: '50px', flexDirection: 'column' }}>
-                                    <div>🔊</div>
-                                    <div style={{ fontSize: '14px', marginTop: '10px' }}>Partner speaking</div>
-                                </div>
-                                {/* Hidden audio element for voice calls */}
-                                <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
-                            </>
-                        )}
-                        <div style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '12px' }}>PARTNER</div>
-                    </div>
-                </div>
-            )}
-
-            {/* Buttons */}
-            <div style={{ marginBottom: '10px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="main-content">
+                {/* Landing Page */}
                 {!roomCreated ? (
-                    <>
-                        <button onClick={() => webrtcService.current?.createRoom()} style={btn('#4caf50')}>🏠 Create Room</button>
-                        {!showJoinInput ? (
-                            <button onClick={() => setShowJoinInput(true)} style={btn('#2196f3')}>🚪 Join Room</button>
-                        ) : (
-                            <>
-                                <input value={joinRoomId} onChange={e => setJoinRoomId(e.target.value.toUpperCase())}
-                                    placeholder="Room ID" maxLength={6}
-                                    style={{ padding: '12px', fontSize: '18px', width: '130px', textAlign: 'center', letterSpacing: '3px' }} autoFocus />
-                                <button onClick={() => { webrtcService.current?.joinRoom(joinRoomId); setShowJoinInput(false); }} style={btn('#4caf50')}>Join</button>
-                                <button onClick={() => setShowJoinInput(false)} style={btn('#999')}>Cancel</button>
-                            </>
-                        )}
-                    </>
+                    <div className="landing-page">
+                        <div className="landing-card">
+                            <div className="landing-icon">🏠</div>
+                            <h2>Create a New Room</h2>
+                            <button onClick={() => webrtcService.current?.createRoom()} className="btn btn-success btn-full btn-lg">
+                                Create Room
+                            </button>
+                        </div>
+
+                        <div className="divider-text">OR</div>
+
+                        <div className="landing-card">
+                            <div className="landing-icon">🚪</div>
+                            <h2>Join Existing Room</h2>
+                            {!showJoinInput ? (
+                                <button onClick={() => setShowJoinInput(true)} className="btn btn-primary btn-full btn-lg">
+                                    Join Room
+                                </button>
+                            ) : (
+                                <div className="join-input-group">
+                                    <input
+                                        value={joinRoomId}
+                                        onChange={e => setJoinRoomId(e.target.value.toUpperCase())}
+                                        placeholder="Room ID"
+                                        maxLength={6}
+                                        className="join-input"
+                                        autoFocus
+                                    />
+                                    <button onClick={() => { webrtcService.current?.joinRoom(joinRoomId); setShowJoinInput(false); }} className="btn btn-success">
+                                        Join
+                                    </button>
+                                    <button onClick={() => setShowJoinInput(false)} className="btn btn-secondary">
+                                        ✕
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 ) : (
                     <>
-                        {isConnected && callState === 'idle' && (
-                            <>
-                                <button onClick={() => handleStartCall('video')} style={btn('#2196f3')}>📹 Video Call</button>
-                                <button onClick={() => handleStartCall('voice')} style={btn('#ff9800')}>🎤 Voice Call</button>
-                            </>
+                        {/* Action Bar */}
+                        <div className="action-bar">
+                            {isConnected && callState === 'idle' && (
+                                <>
+                                    <button onClick={() => handleStartCall('video')} className="btn btn-primary">📹 Video Call</button>
+                                    <button onClick={() => handleStartCall('voice')} className="btn btn-warning">🎤 Voice Call</button>
+                                </>
+                            )}
+                            {!isConnected && callState === 'idle' && (
+                                <span className="waiting-badge">⏳ Waiting for partner to join... (Room: {roomId})</span>
+                            )}
+                            {callState === 'requesting' && (
+                                <button onClick={handleEndCall} className="btn btn-danger">❌ Cancel Request</button>
+                            )}
+                            {callState === 'in-call' && (
+                                <button onClick={handleEndCall} className="btn btn-danger">☎️ End Call</button>
+                            )}
+                            <button onClick={handleLeaveRoom} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>👋 Leave</button>
+                        </div>
+
+                        {/* Call Area */}
+                        {isInCall && (
+                            <div className="call-area">
+                                <div className="video-box">
+                                    {callType === 'video' ? (
+                                        <video ref={localVideoRef} autoPlay muted playsInline />
+                                    ) : (
+                                        <div className="audio-indicator">
+                                            <span className="audio-icon">🎤</span>
+                                            <span>Microphone active</span>
+                                        </div>
+                                    )}
+                                    <span className="video-label">YOU</span>
+                                </div>
+                                <div className="video-box">
+                                    {callType === 'video' ? (
+                                        <video ref={remoteVideoRef} autoPlay playsInline />
+                                    ) : (
+                                        <>
+                                            <div className="audio-indicator">
+                                                <span className="audio-icon">🔊</span>
+                                                <span>Partner speaking</span>
+                                            </div>
+                                            <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
+                                        </>
+                                    )}
+                                    <span className="video-label">PARTNER</span>
+                                </div>
+                            </div>
                         )}
-                        {!isConnected && callState === 'idle' && (
-                            <span style={{ padding: '12px 20px', background: '#fff3cd', borderRadius: '8px', color: '#856404', fontWeight: 'bold' }}>
-                                ⏳ Waiting for partner... (Room: {roomId})
-                            </span>
-                        )}
-                        {callState === 'requesting' && (
-                            <button onClick={handleEndCall} style={btn('#f44336')}>❌ Cancel</button>
-                        )}
-                        {callState === 'in-call' && (
-                            <button onClick={handleEndCall} style={btn('#f44336')}>☎️ End Call</button>
-                        )}
-                        <button onClick={handleLeaveRoom} style={btn('#999')}>👋 Leave Room</button>
+
+                        {/* Chat Area */}
+                        <div className="chat-area">
+                            <div className="messages-container">
+                                {messages.length === 0 && (
+                                    <div className="empty-chat">
+                                        {isConnected ? '💬 Start chatting...' : `📋 Share Room ID "${roomId}" with your partner`}
+                                    </div>
+                                )}
+                                {messages.map(msg => (
+                                    <div key={msg.id} className={`message ${msg.fromMe ? 'sent' : 'received'}`}>
+                                        <div className="message-bubble">{msg.text}</div>
+                                    </div>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </div>
+
+                            <div className="input-area">
+                                <input
+                                    value={inputText}
+                                    onChange={e => setInputText(e.target.value)}
+                                    onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
+                                    placeholder={isConnected ? "Type a message..." : "Waiting for partner..."}
+                                    disabled={!isConnected}
+                                    className="message-input"
+                                />
+                                <button onClick={handleSendMessage} disabled={!isConnected} className="send-btn">
+                                    ➤
+                                </button>
+                            </div>
+                        </div>
                     </>
                 )}
             </div>
-
-            {/* Chat */}
-            {roomCreated && (
-                <>
-                    <div style={{ border: '1px solid #ddd', height: '250px', overflowY: 'auto', padding: '10px', marginBottom: '10px', background: '#f5f5f5', borderRadius: '5px' }}>
-                        {messages.length === 0 && (
-                            <div style={{ textAlign: 'center', color: '#999', paddingTop: '100px' }}>
-                                {isConnected ? 'Start chatting...' : `Share Room ID "${roomId}"`}
-                            </div>
-                        )}
-                        {messages.map(msg => (
-                            <div key={msg.id} style={{ textAlign: msg.fromMe ? 'right' : 'left', marginBottom: '8px' }}>
-                                <span style={{ display: 'inline-block', padding: '8px 14px', background: msg.fromMe ? '#2196f3' : '#e0e0e0', color: msg.fromMe ? 'white' : 'black', borderRadius: '15px', maxWidth: '70%', wordBreak: 'break-word' }}>
-                                    {msg.text}
-                                </span>
-                            </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <input value={inputText} onChange={e => setInputText(e.target.value)}
-                            onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
-                            placeholder={isConnected ? "Type..." : "Waiting..."}
-                            disabled={!isConnected}
-                            style={{ flex: 1, padding: '12px', fontSize: '15px', border: '1px solid #ddd', borderRadius: '20px', outline: 'none', background: isConnected ? 'white' : '#e9e9e9' }} />
-                        <button onClick={handleSendMessage} disabled={!isConnected}
-                            style={{ padding: '12px 25px', background: isConnected ? '#2196f3' : '#ccc', color: 'white', border: 'none', borderRadius: '20px', cursor: isConnected ? 'pointer' : 'not-allowed', fontSize: '15px' }}>
-                            Send
-                        </button>
-                    </div>
-                </>
-            )}
         </div>
     );
 };
-
-const btn = (bg) => ({
-    padding: '12px 20px', fontSize: '15px', background: bg,
-    color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
-});
 
 export default ChatRoom;
