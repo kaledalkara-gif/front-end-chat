@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
 import './ChatRoom.css';
 
+
 const ChatRoom = () => {
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
@@ -13,7 +14,9 @@ const ChatRoom = () => {
     const [callState, setCallState] = useState('idle');
     const [incomingCallType, setIncomingCallType] = useState(null);
     const [callType, setCallType] = useState('video');
-
+    const [localSize, setLocalSize] = useState(0.5); // 0.5 = 50% each
+    const [callHeight, setCallHeight] = useState(40);
+    const [showEmojis, setShowEmojis] = useState(false);
     const webrtcService = useRef(null);
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
@@ -242,31 +245,196 @@ const ChatRoom = () => {
 
                         {/* Call Area */}
                         {isInCall && (
-                            <div className="call-area">
-                                <div className="video-box">
+                            <div style={{
+                                display: 'flex',
+                                gap: '4px',
+                                padding: '12px 20px',
+                                background: '#000',
+                                minHeight: '200px',
+                                height: `${callHeight}vh`,
+                                position: 'relative',
+                                transition: 'height 0.3s ease'
+                            }}>
+                                {/* Local Video */}
+                                <div style={{
+                                    flex: localSize,
+                                    position: 'relative',
+                                    background: '#1a1a1a',
+                                    borderRadius: '12px',
+                                    overflow: 'hidden',
+                                    minWidth: '100px',
+                                    transition: 'flex 0.3s ease'
+                                }}>
                                     {callType === 'video' ? (
-                                        <video ref={localVideoRef} autoPlay muted playsInline />
+                                        <video ref={localVideoRef} autoPlay muted playsInline
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
                                     ) : (
-                                        <div className="audio-indicator">
-                                            <span className="audio-icon">🎤</span>
-                                            <span>Microphone active</span>
+                                        <div style={{
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                            justifyContent: 'center', height: '100%', color: 'white', gap: '8px'
+                                        }}>
+                                            <span style={{ fontSize: 'clamp(30px, 6vw, 50px)' }}>🎤</span>
+                                            <span style={{ fontSize: 'clamp(12px, 2vw, 14px)' }}>Microphone active</span>
                                         </div>
                                     )}
-                                    <span className="video-label">YOU</span>
+                                    <span style={{
+                                        position: 'absolute', bottom: '8px', left: '8px',
+                                        background: 'rgba(0,0,0,0.7)', color: 'white',
+                                        padding: '4px 10px', borderRadius: '12px', fontSize: '11px', zIndex: 5
+                                    }}>YOU</span>
+
+                                    {/* Size controls */}
+                                    <div style={{
+                                        position: 'absolute', top: '6px', right: '6px',
+                                        display: 'flex', gap: '3px', zIndex: 10
+                                    }}>
+                                        <button onClick={() => setLocalSize(Math.max(0.2, localSize - 0.1))}
+                                            style={resizeBtnStyle} title="Make smaller">−</button>
+                                        <button onClick={() => setLocalSize(Math.min(0.8, localSize + 0.1))}
+                                            style={resizeBtnStyle} title="Make larger">+</button>
+                                    </div>
                                 </div>
-                                <div className="video-box">
+
+                                {/* Horizontal Resize Handle */}
+                                <div
+                                    style={{
+                                        width: '6px',
+                                        cursor: 'col-resize',
+                                        background: 'rgba(255,255,255,0.2)',
+                                        borderRadius: '3px',
+                                        flexShrink: 0,
+                                        transition: 'background 0.2s'
+                                    }}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const startX = e.clientX;
+                                        const startSize = localSize;
+                                        const onMouseMove = (me) => {
+                                            const w = e.target.parentElement.offsetWidth;
+                                            const d = (me.clientX - startX) / w;
+                                            setLocalSize(Math.max(0.2, Math.min(0.8, startSize + d)));
+                                        };
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove);
+                                            document.removeEventListener('mouseup', onMouseUp);
+                                        };
+                                        document.addEventListener('mousemove', onMouseMove);
+                                        document.addEventListener('mouseup', onMouseUp);
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.5)'}
+                                    onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                                    onTouchStart={(e) => {
+                                        e.preventDefault();
+                                        const startX = e.touches[0].clientX;
+                                        const startSize = localSize;
+                                        const onTouchMove = (me) => {
+                                            const w = e.target.parentElement.offsetWidth;
+                                            const d = (me.touches[0].clientX - startX) / w;
+                                            setLocalSize(Math.max(0.2, Math.min(0.8, startSize + d)));
+                                        };
+                                        const onTouchEnd = () => {
+                                            document.removeEventListener('touchmove', onTouchMove);
+                                            document.removeEventListener('touchend', onTouchEnd);
+                                        };
+                                        document.addEventListener('touchmove', onTouchMove, { passive: false });
+                                        document.addEventListener('touchend', onTouchEnd);
+                                    }}
+                                />
+
+                                {/* Remote Video */}
+                                <div style={{
+                                    flex: 1 - localSize,
+                                    position: 'relative',
+                                    background: '#1a1a1a',
+                                    borderRadius: '12px',
+                                    overflow: 'hidden',
+                                    minWidth: '100px',
+                                    transition: 'flex 0.3s ease'
+                                }}>
                                     {callType === 'video' ? (
-                                        <video ref={remoteVideoRef} autoPlay playsInline />
+                                        <video ref={remoteVideoRef} autoPlay playsInline
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
                                     ) : (
                                         <>
-                                            <div className="audio-indicator">
-                                                <span className="audio-icon">🔊</span>
-                                                <span>Partner speaking</span>
+                                            <div style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                                justifyContent: 'center', height: '100%', color: '#4caf50', gap: '8px'
+                                            }}>
+                                                <span style={{ fontSize: 'clamp(30px, 6vw, 50px)' }}>🔊</span>
+                                                <span style={{ fontSize: 'clamp(12px, 2vw, 14px)' }}>Partner speaking</span>
                                             </div>
                                             <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
                                         </>
                                     )}
-                                    <span className="video-label">PARTNER</span>
+                                    <span style={{
+                                        position: 'absolute', bottom: '8px', left: '8px',
+                                        background: 'rgba(0,0,0,0.7)', color: 'white',
+                                        padding: '4px 10px', borderRadius: '12px', fontSize: '11px', zIndex: 5
+                                    }}>PARTNER</span>
+
+                                    {/* Size controls */}
+                                    <div style={{
+                                        position: 'absolute', top: '6px', right: '6px',
+                                        display: 'flex', gap: '3px', zIndex: 10
+                                    }}>
+                                        <button onClick={() => setLocalSize(Math.min(0.8, localSize + 0.1))}
+                                            style={resizeBtnStyle} title="Make partner smaller">−</button>
+                                        <button onClick={() => setLocalSize(Math.max(0.2, localSize - 0.1))}
+                                            style={resizeBtnStyle} title="Make partner larger">+</button>
+                                    </div>
+                                </div>
+
+                                {/* Vertical Resize Handle - at the bottom */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: '-2px',
+                                        left: '20px',
+                                        right: '20px',
+                                        height: '8px',
+                                        cursor: 'row-resize',
+                                        zIndex: 20
+                                    }}
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const startY = e.clientY;
+                                        const startHeight = callHeight;
+                                        const onMouseMove = (me) => {
+                                            const delta = (startY - me.clientY) / window.innerHeight * 100;
+                                            setCallHeight(Math.max(25, Math.min(70, startHeight + delta)));
+                                        };
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove);
+                                            document.removeEventListener('mouseup', onMouseUp);
+                                        };
+                                        document.addEventListener('mousemove', onMouseMove);
+                                        document.addEventListener('mouseup', onMouseUp);
+                                    }}
+                                    onTouchStart={(e) => {
+                                        e.preventDefault();
+                                        const startY = e.touches[0].clientY;
+                                        const startHeight = callHeight;
+                                        const onTouchMove = (me) => {
+                                            const delta = (startY - me.touches[0].clientY) / window.innerHeight * 100;
+                                            setCallHeight(Math.max(25, Math.min(70, startHeight + delta)));
+                                        };
+                                        const onTouchEnd = () => {
+                                            document.removeEventListener('touchmove', onTouchMove);
+                                            document.removeEventListener('touchend', onTouchEnd);
+                                        };
+                                        document.addEventListener('touchmove', onTouchMove, { passive: false });
+                                        document.addEventListener('touchend', onTouchEnd);
+                                    }}
+                                >
+                                    {/* Visual handle bar */}
+                                    <div style={{
+                                        width: '60px',
+                                        height: '4px',
+                                        background: 'rgba(255,255,255,0.3)',
+                                        borderRadius: '2px',
+                                        margin: '2px auto',
+                                        cursor: 'row-resize'
+                                    }} />
                                 </div>
                             </div>
                         )}
@@ -287,7 +455,30 @@ const ChatRoom = () => {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            <div className="input-area">
+                            {/* Input Area */}
+                            <div className="input-area" style={{ position: 'relative' }}>
+                                <button
+                                    onClick={() => setShowEmojis(!showEmojis)}
+                                    style={{
+                                        width: '44px',
+                                        height: '44px',
+                                        borderRadius: '50%',
+                                        border: 'none',
+                                        background: showEmojis ? 'rgba(102, 126, 234, 0.3)' : 'transparent',
+                                        color: 'white',
+                                        fontSize: '22px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                        transition: 'background 0.2s'
+                                    }}
+                                    title="Emojis"
+                                >
+                                    😊
+                                </button>
+
                                 <input
                                     value={inputText}
                                     onChange={e => setInputText(e.target.value)}
@@ -296,9 +487,133 @@ const ChatRoom = () => {
                                     disabled={!isConnected}
                                     className="message-input"
                                 />
+
                                 <button onClick={handleSendMessage} disabled={!isConnected} className="send-btn">
                                     ➤
                                 </button>
+
+                                {/* Emoji Picker */}
+                                {showEmojis && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '60px',
+                                        left: '12px',
+                                        background: '#1e1e3a',
+                                        border: '1px solid rgba(255,255,255,0.15)',
+                                        borderRadius: '16px',
+                                        padding: '12px',
+                                        width: 'calc(100% - 24px)',
+                                        maxWidth: '500px',
+                                        maxHeight: '300px',
+                                        overflowY: 'auto',
+                                        boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                                        zIndex: 100,
+                                        animation: 'fadeIn 0.2s ease'
+                                    }}>
+                                        {/* Category Tabs */}
+                                        <div style={{
+                                            display: 'flex',
+                                            gap: '4px',
+                                            marginBottom: '10px',
+                                            flexWrap: 'wrap',
+                                            position: 'sticky',
+                                            top: 0,
+                                            background: '#1e1e3a',
+                                            paddingBottom: '8px',
+                                            zIndex: 2
+                                        }}>
+                                            {Object.keys(EMOJIS).map(cat => (
+                                                <button
+                                                    key={cat}
+                                                    onClick={() => {
+                                                        const el = document.getElementById(`emoji-cat-${cat}`);
+                                                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '12px',
+                                                        border: 'none',
+                                                        background: 'rgba(255,255,255,0.1)',
+                                                        color: 'white',
+                                                        fontSize: '11px',
+                                                        cursor: 'pointer',
+                                                        textTransform: 'capitalize',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
+                                                    {cat === 'faces' ? '😀' : cat === 'hearts' ? '❤️' : cat === 'gestures' ? '👍' :
+                                                        cat === 'party' ? '🎉' : cat === 'animals' ? '🐶' : cat === 'food' ? '🍎' :
+                                                            cat === 'travel' ? '✈️' : cat === 'objects' ? '📱' : '🔴'} {cat}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Emoji Grid */}
+                                        {Object.entries(EMOJIS).map(([category, emojis]) => (
+                                            <div key={category} id={`emoji-cat-${category}`}>
+                                                <div style={{
+                                                    color: 'rgba(255,255,255,0.5)',
+                                                    fontSize: '11px',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '1px',
+                                                    marginBottom: '6px',
+                                                    marginTop: '12px',
+                                                    paddingLeft: '4px'
+                                                }}>
+                                                    {category}
+                                                </div>
+                                                <div style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))',
+                                                    gap: '4px',
+                                                    marginBottom: '8px'
+                                                }}>
+                                                    {emojis.map((emoji, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => {
+                                                                setInputText(prev => prev + emoji);
+                                                            }}
+                                                            style={{
+                                                                width: '100%',
+                                                                aspectRatio: '1',
+                                                                fontSize: 'clamp(16px, 3vw, 22px)',
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                background: 'transparent',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                transition: 'background 0.15s'
+                                                            }}
+                                                            onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                                                            onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                                                            title={emoji}
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Click outside to close */}
+                                {showEmojis && (
+                                    <div
+                                        onClick={() => setShowEmojis(false)}
+                                        style={{
+                                            position: 'fixed',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            zIndex: 99
+                                        }}
+                                    />
+                                )}
                             </div>
                         </div>
                     </>
@@ -306,6 +621,41 @@ const ChatRoom = () => {
             </div>
         </div>
     );
+};
+
+const resizeBtnStyle = {
+    width: '26px',
+    height: '26px',
+    borderRadius: '50%',
+    border: 'none',
+    background: 'rgba(0,0,0,0.5)',
+    color: 'white',
+    cursor: 'pointer',
+    fontSize: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backdropFilter: 'blur(4px)'
+};
+
+const EMOJIS = {
+    faces: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😗', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '😮', '😯', '😲', '😳', '🥺', '😢', '😭', '😤', '😡', '🤬', '😈', '👿', '💀', '☠️', '💩', '🤡', '👻', '💪', '👍', '👎', '👏', '🙌', '🤝', '🙏', '💅'],
+
+    hearts: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '♥️'],
+
+    gestures: ['👍', '👎', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✌️', '🤞', '🤟', '🤘', '🤙', '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙'],
+
+    party: ['🎉', '🎊', '🎈', '🎂', '🎀', '🎁', '🎃', '🎄', '🎅', '🎆', '🎇', '✨', '🎵', '🎶', '🎤', '🎧', '🎼', '🎹', '🥁', '🎸', '🎺', '🎷', '🎻', '🪕', '🎯', '🎮', '🎰', '🎲', '🎳', '🎾', '⚽', '🏀', '🏈', '⚾', '🥎', '🎱', '🏆', '🥇', '🥈', '🥉'],
+
+    animals: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐓', '🦃', '🦚', '🦜', '🦢', '🦩', '🕊️'],
+
+    food: ['🍎', '🍏', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯'],
+
+    travel: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🏍️', '🛵', '🚲', '🛴', '🛹', '🚄', '🚅', '🚈', '🚝', '🚂', '✈️', '🚁', '🛩️', '🚀', '🛸', '⛵', '🚤', '🛳️', '⛴️', '🏠', '🏡', '🏢', '🏰', '🏯', '🗽', '🗼', '⛲', '🌍', '🌎', '🌏', '🌋', '🏔️', '⛰️', '🏕️', '🏖️', '🏜️', '🏝️', '🌅', '🌄', '🌈', '☀️', '🌤️', '⛅', '🌦️', '☁️', '🌧️', '⛈️', '🌩️', '❄️', '☃️', '⛄', '🌊', '🔥', '💧', '🌟', '⭐', '🌙', '☄️', '💫', '🪐'],
+
+    objects: ['📱', '💻', '⌚', '📷', '🎥', '💡', '🔦', '📚', '📖', '💰', '💳', '💎', '🔑', '🗝️', '🔨', '🪓', '⛏️', '⚒️', '🛠️', '🗡️', '⚔️', '🔫', '🪃', '🏹', '🛡️', '🔧', '🔩', '⚙️', '🗜️', '⚖️', '🦯', '🔗', '⛓️', '🪝', '🧰', '🧲', '🧪', '🧫', '🧬', '🔬', '🔭', '📡', '💉', '🩸', '💊', '🩹', '🩺', '🧹', '🧺', '🧻', '🚽', '🚿', '🛁', '🧼', '🪥', '🪒', '🧴', '🧷', '🧹'],
+
+    symbols: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '✅', '❌', '⚠️', '🚫', '➕', '➖', '➗', '✖️', '♾️', '⁉️', '❓', '❔', '❗', '❕', '〰️', '💲', '💱', '©️', '®️', '™️', '♻️', '🔱', '⭕', '☑️', '✔️', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫']
 };
 
 export default ChatRoom;
