@@ -88,6 +88,24 @@ const ChatRoom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // Add this useEffect in ChatRoom.js, near the other useEffects
+    useEffect(() => {
+        // Detect mobile
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+        if (isMobile) {
+            // Ensure video elements have playsinline attribute
+            if (localVideoRef.current) {
+                localVideoRef.current.setAttribute('playsinline', 'true');
+                localVideoRef.current.setAttribute('webkit-playsinline', 'true');
+            }
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.setAttribute('playsinline', 'true');
+                remoteVideoRef.current.setAttribute('webkit-playsinline', 'true');
+            }
+        }
+    }, [callState, isInCall]);
+
     // ============ CALL HANDLERS ============
 
     const handleStartCall = async (type) => {
@@ -95,10 +113,23 @@ const ChatRoom = () => {
         setCallState('requesting');
         try {
             await webrtcService.current?.startCall(type);
-            if (localVideoRef.current && webrtcService.current?.localStream) {
-                localVideoRef.current.srcObject = webrtcService.current.localStream;
-            }
+
+            // Set local video with play attempt
+            setTimeout(() => {
+                const stream = webrtcService.current?.localStream;
+                if (localVideoRef.current && stream) {
+                    localVideoRef.current.srcObject = stream;
+                    localVideoRef.current.play()
+                        .then(() => console.log('✅ Local video playing on caller'))
+                        .catch(e => {
+                            console.log('Play failed, muting:', e.message);
+                            localVideoRef.current.muted = true;
+                            localVideoRef.current.play().catch(() => { });
+                        });
+                }
+            }, 300);
         } catch (err) {
+            console.error('Failed to start call:', err);
             setCallState('idle');
         }
     };
@@ -110,12 +141,35 @@ const ChatRoom = () => {
             await webrtcService.current?.acceptIncomingCall(type);
             setCallState('in-call');
             setIncomingCallType(null);
+
+            // Longer delay for mobile browsers
             setTimeout(() => {
-                if (localVideoRef.current && webrtcService.current?.localStream) {
-                    localVideoRef.current.srcObject = webrtcService.current.localStream;
+                const stream = webrtcService.current?.localStream;
+                if (localVideoRef.current && stream) {
+                    localVideoRef.current.srcObject = stream;
+
+                    // Force play with user gesture context
+                    localVideoRef.current.play()
+                        .then(() => {
+                            console.log('✅ Local video playing on receiver');
+                        })
+                        .catch(e => {
+                            console.log('Play failed, muting and retrying:', e.message);
+                            localVideoRef.current.muted = true;
+                            return localVideoRef.current.play();
+                        })
+                        .then(() => {
+                            console.log('✅ Local video playing (muted)');
+                        })
+                        .catch(e => {
+                            console.error('❌ Could not play video:', e.message);
+                        });
+                } else {
+                    console.log('❌ Missing ref or stream - Ref:', !!localVideoRef.current, 'Stream:', !!stream);
                 }
-            }, 300);
+            }, 500); // Increased from 300ms for mobile
         } catch (err) {
+            console.error('Failed to accept call:', err);
             setCallState('idle');
             setIncomingCallType(null);
         }
