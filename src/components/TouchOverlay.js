@@ -3,6 +3,7 @@ import { TOUCH_PATTERNS } from '../services/HapticService';
 import './TouchOverlay.css';
 
 const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
+    const [hasTouched, setHasTouched] = useState(false);
     const [selectedPattern, setSelectedPattern] = useState('touch');
     const [showPicker, setShowPicker] = useState(false);
     const overlayRef = useRef(null);
@@ -11,6 +12,9 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
     const handleTouch = useCallback((e) => {
         if (!isVisible) return;
         e.preventDefault();
+
+        // Hide hint after first touch
+        if (!hasTouched) setHasTouched(true);
 
         const touch = e.touches ? e.touches[0] : e;
         const rect = overlayRef.current?.getBoundingClientRect();
@@ -76,7 +80,7 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
             {/* Touch-sensitive area */}
             <div
                 ref={overlayRef}
-                className="touch-area"
+                className={`touch-area ${hasTouched ? 'touched' : ''}`}
                 onTouchStart={handleTouch}
                 onTouchMove={handleTouch}
                 onMouseDown={handleTouch}
