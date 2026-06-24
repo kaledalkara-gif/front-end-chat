@@ -71,8 +71,13 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = stream;
+            // Store remote stream in service
+            // The sync useEffect will handle assigning it
+            if (mainVideoRef.current && !mainIsLocal) {
+                mainVideoRef.current.srcObject = stream;
+            }
+            if (pipVideoRef.current && !pipIsLocal) {
+                pipVideoRef.current.srcObject = stream;
             }
         };
 
@@ -131,20 +136,22 @@ const ChatRoom = () => {
         const localStream = webrtcService.current?.localStream;
         const remoteStream = webrtcService.current?.remoteStream;
 
+        // Main video shows the "mainIsLocal" person
         if (mainVideoRef.current) {
-            mainVideoRef.current.srcObject = mainIsLocal ? localStream : remoteStream;
+            const streamForMain = mainIsLocal ? localStream : remoteStream;
+            if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
+                mainVideoRef.current.srcObject = streamForMain;
+            }
         }
+
+        // PIP shows the opposite person
         if (pipVideoRef.current) {
-            pipVideoRef.current.srcObject = pipIsLocal ? localStream : remoteStream;
+            const streamForPip = pipIsLocal ? localStream : remoteStream;
+            if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
+                pipVideoRef.current.srcObject = streamForPip;
+            }
         }
     }, [mainIsLocal, callState, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
-
-    const clearMedia = () => {
-        setIsMuted(false);
-        setIsCameraOff(false);
-        if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
-        if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
-    };
 
     // ============ CALL HANDLERS ============
 
