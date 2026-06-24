@@ -54,6 +54,13 @@ const ChatRoom = () => {
     const remoteVideoRef = useRef(null);
     const messagesEndRef = useRef(null);
 
+    const clearMedia = () => {
+        setIsMuted(false);
+        setIsCameraOff(false);
+        if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
+        if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+    };
+
     // Detect screen resize
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
