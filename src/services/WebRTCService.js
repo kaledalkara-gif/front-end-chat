@@ -24,6 +24,7 @@ class WebRTCService {
         this.onCallAccepted = null;
         this.onCallRejected = null;
         this.onCallEnded = null;
+        this.onTouchReceived = null;
     }
 
     connect() {
@@ -107,6 +108,12 @@ class WebRTCService {
             this.onMessage?.(text);
         });
 
+        // Add this with the other socket.on listeners
+        this.socket.on('touch-data', (data) => {
+            console.log('🖐️ Touch data received via socket');
+            this.onTouchReceived?.(data);
+        });
+
         this.socket.on('peer-left', () => {
             console.log('👋 Peer left room');
             this.cleanup();
@@ -124,6 +131,10 @@ class WebRTCService {
                 // Server disconnected us, try reconnecting
                 this.socket.connect();
             }
+        });
+
+        this.socket.on('touch-data', (data) => {
+            this.onTouchReceived?.(data);
         });
     }
 
@@ -159,6 +170,15 @@ class WebRTCService {
             console.error('❌ Failed to start call:', error);
             this.stopLocalStream();
             throw error;
+        }
+    }
+
+    sendTouchData(touchData) {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'touch', ...touchData }));
+        } else {
+            // Fallback to socket
+            this.socket.emit('touch-data', touchData);
         }
     }
 
@@ -360,6 +380,9 @@ class WebRTCService {
                         }
                     }, 15000);
                     break;
+                default:
+                    console.log('🧊 Unknown ICE state:', iceState);
+                    break;
             }
         };
 
@@ -500,6 +523,7 @@ class WebRTCService {
 
                 default:
                     console.warn('⚠️ Unknown signal type:', type);
+                    break;
             }
         } catch (error) {
             console.error('❌ Signal handling error:', error);

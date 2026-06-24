@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
+import TouchOverlay from './TouchOverlay';
+import { HapticService, TOUCH_PATTERNS } from '../services/HapticService';
 import './ChatRoom.css';
 
 
@@ -22,6 +24,7 @@ const ChatRoom = () => {
     const localVideoRef = useRef(null);
     const remoteVideoRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const [receivedTouches, setReceivedTouches] = useState([]);
 
     useEffect(() => {
         const service = new WebRTCService();
@@ -80,6 +83,20 @@ const ChatRoom = () => {
             }
         };
 
+        service.onTouchReceived = (touchData) => {
+            // Add unique ID
+            const touchWithId = { ...touchData, id: Date.now() + Math.random() };
+            setReceivedTouches(prev => [...prev.slice(-5), touchWithId]);
+
+            // Trigger vibration
+            HapticService.vibrate(touchData.pattern);
+
+            // Remove after animation
+            setTimeout(() => {
+                setReceivedTouches(prev => prev.filter(t => t.id !== touchWithId.id));
+            }, TOUCH_PATTERNS[touchData.pattern]?.duration || 1500);
+        };
+
         service.connect();
         return () => service.disconnect();
     }, []);
@@ -87,24 +104,6 @@ const ChatRoom = () => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
-    // Add this useEffect in ChatRoom.js, near the other useEffects
-    // useEffect(() => {
-    //     // Detect mobile
-    //     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    //     if (isMobile) {
-    //         // Ensure video elements have playsinline attribute
-    //         if (localVideoRef.current) {
-    //             localVideoRef.current.setAttribute('playsinline', 'true');
-    //             localVideoRef.current.setAttribute('webkit-playsinline', 'true');
-    //         }
-    //         if (remoteVideoRef.current) {
-    //             remoteVideoRef.current.setAttribute('playsinline', 'true');
-    //             remoteVideoRef.current.setAttribute('webkit-playsinline', 'true');
-    //         }
-    //     }
-    // }, [callState, isInCall]);
 
     // ============ CALL HANDLERS ============
 
@@ -132,6 +131,11 @@ const ChatRoom = () => {
             console.error('Failed to start call:', err);
             setCallState('idle');
         }
+    };
+
+    const handleTouchSend = (touchData) => {
+        // Send touch via data channel or socket
+        webrtcService.current?.sendTouchData?.(touchData);
     };
 
     const handleAcceptCall = async () => {
@@ -447,6 +451,14 @@ const ChatRoom = () => {
                                             style={resizeBtnStyle} title="Make partner larger">+</button>
                                     </div>
                                 </div>
+                                {/* Touch Overlay - appears during calls */}
+                                {isInCall && (
+                                    <TouchOverlay
+                                        isVisible={isInCall}
+                                        onTouchSend={handleTouchSend}
+                                        receivedTouches={receivedTouches}
+                                    />
+                                )}
 
                                 {/* Vertical Resize Handle - at the bottom */}
                                 <div
