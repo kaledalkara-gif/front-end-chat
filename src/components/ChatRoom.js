@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import WebRTCService from '../services/WebRTCService';
 import { HapticService, TOUCH_PATTERNS } from '../services/HapticService';
+import { KissSyncService, KISS_MATCH_VIBRATION } from '../services/KissSyncService';
 import TouchOverlay from './TouchOverlay';
+import KissMatch from './KissMatch';
 import './ChatRoom.css';
 
 const EMOJIS = {
@@ -17,6 +19,7 @@ const EMOJIS = {
 };
 
 const ChatRoom = () => {
+    // ============ STATE ============
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [roomId, setRoomId] = useState('');
@@ -34,26 +37,26 @@ const ChatRoom = () => {
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [receivedTouches, setReceivedTouches] = useState([]);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-
-    const [mainIsLocal, setMainIsLocal] = useState(true);  // Main video shows local
+    const [mainIsLocal, setMainIsLocal] = useState(true);
     const [pipPos, setPipPos] = useState({ x: 10, y: 10 });
-    const [isDragging, setIsDragging] = useState(false);
-    const dragStart = useRef({ x: 0, y: 0 });
+    const [kissMatches, setKissMatches] = useState([]);
+    const [kissCloseness, setKissCloseness] = useState(0);
 
+    // ============ REFS ============
+    const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
     const pipVideoRef = useRef(null);
+    const messagesEndRef = useRef(null);
     const pipRef = useRef(null);
+    const kissSyncRef = useRef(new KissSyncService());
+    const dragStart = useRef({ x: 0, y: 0 });
 
     // Derived values
     const pipIsLocal = !mainIsLocal;
     const showMainOff = mainIsLocal ? isCameraOff : false;
     const showPipOff = pipIsLocal ? isCameraOff : false;
 
-    const webrtcService = useRef(null);
-    const localVideoRef = useRef(null);
-    const remoteVideoRef = useRef(null);
-    const messagesEndRef = useRef(null);
-
+    // ============ HELPER FUNCTIONS ============
     const clearMedia = () => {
         setIsMuted(false);
         setIsCameraOff(false);
@@ -61,7 +64,9 @@ const ChatRoom = () => {
         if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
     };
 
-    // Detect screen resize
+    // ============ EFFECTS ============
+
+    // Screen resize detection
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
@@ -78,8 +83,6 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            // Store remote stream in service
-            // The sync useEffect will handle assigning it
             if (mainVideoRef.current && !mainIsLocal) {
                 mainVideoRef.current.srcObject = stream;
             }
@@ -119,10 +122,25 @@ const ChatRoom = () => {
             clearMedia();
         };
 
+        // Touch & Kiss handling
         service.onTouchReceived = (touchData) => {
             const touchWithId = { ...touchData, id: Date.now() + Math.random() };
             setReceivedTouches(prev => [...prev.slice(-5), touchWithId]);
             HapticService.vibrate(touchData.pattern);
+
+            // Register partner's kiss for sync
+            if (touchData.pattern === 'kiss') {
+                kissSyncRef.current.registerPartnerTouch(
+                    touchWithId.id,
+                    touchData.x,
+                    touchData.y,
+                    touchData.pattern
+                );
+                setTimeout(() => {
+                    kissSyncRef.current.removePartnerTouch(touchWithId.id);
+                }, 2000);
+            }
+
             setTimeout(() => {
                 setReceivedTouches(prev => prev.filter(t => t.id !== touchWithId.id));
             }, TOUCH_PATTERNS[touchData.pattern]?.duration || 1500);
@@ -131,19 +149,41 @@ const ChatRoom = () => {
         service.onError = (msg) => console.error(msg);
         service.connect();
 
-        return () => service.disconnect();
+        // Initialize kiss sync callbacks
+        const kissSync = kissSyncRef.current;
+        kissSync.onKissMatch = (match) => {
+            const matchWithId = { ...match, id: Date.now() };
+            setKissMatches(prev => [...prev.slice(-3), matchWithId]);
+
+            if (navigator.vibrate) {
+                navigator.vibrate(KISS_MATCH_VIBRATION);
+            }
+
+            setTimeout(() => {
+                setKissMatches(prev => prev.filter(m => m.id !== matchWithId.id));
+            }, 3000);
+        };
+
+        kissSync.onKissProgress = (closeness) => {
+            setKissCloseness(closeness);
+        };
+
+        return () => {
+            service.disconnect();
+            kissSync.reset();
+        };
     }, []);
 
+    // Auto-scroll messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Keep video refs updated
+    // Sync video refs
     useEffect(() => {
         const localStream = webrtcService.current?.localStream;
         const remoteStream = webrtcService.current?.remoteStream;
 
-        // Main video shows the "mainIsLocal" person
         if (mainVideoRef.current) {
             const streamForMain = mainIsLocal ? localStream : remoteStream;
             if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
@@ -151,14 +191,13 @@ const ChatRoom = () => {
             }
         }
 
-        // PIP shows the opposite person
         if (pipVideoRef.current) {
             const streamForPip = pipIsLocal ? localStream : remoteStream;
             if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
                 pipVideoRef.current.srcObject = streamForPip;
             }
         }
-    }, [mainIsLocal, callState, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
+    }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
 
     // ============ CALL HANDLERS ============
 
@@ -168,8 +207,6 @@ const ChatRoom = () => {
 
     const startDrag = (e) => {
         e.preventDefault();
-        setIsDragging(true);
-
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
@@ -181,7 +218,6 @@ const ChatRoom = () => {
         const onMove = (moveEvent) => {
             const cx = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
             const cy = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
-
             const parent = pipRef.current?.parentElement;
             if (!parent) return;
 
@@ -195,7 +231,6 @@ const ChatRoom = () => {
         };
 
         const onEnd = () => {
-            setIsDragging(false);
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onEnd);
             document.removeEventListener('touchmove', onMove);
@@ -213,10 +248,8 @@ const ChatRoom = () => {
         setCallState('requesting');
         try {
             await webrtcService.current?.startCall(type);
-
             setTimeout(() => {
                 const stream = webrtcService.current?.localStream;
-
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
@@ -232,7 +265,6 @@ const ChatRoom = () => {
                     }
                 }
             }, 300);
-
         } catch (err) {
             console.error('Failed to start call:', err);
             setCallState('idle');
@@ -246,10 +278,8 @@ const ChatRoom = () => {
             await webrtcService.current?.acceptIncomingCall(type);
             setCallState('in-call');
             setIncomingCallType(null);
-
             setTimeout(() => {
                 const stream = webrtcService.current?.localStream;
-
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
@@ -265,7 +295,6 @@ const ChatRoom = () => {
                     }
                 }
             }, 500);
-
         } catch (err) {
             console.error('Failed to accept call:', err);
             setCallState('idle');
@@ -283,6 +312,8 @@ const ChatRoom = () => {
         webrtcService.current?.endCall();
         setCallState('idle');
         clearMedia();
+        setKissMatches([]);
+        setKissCloseness(0);
     };
 
     const toggleMute = () => {
@@ -322,6 +353,7 @@ const ChatRoom = () => {
         setRoomCreated(false);
         setRoomId('');
         setMessages([]);
+        kissSyncRef.current.reset();
     };
 
     const isInCall = callState === 'in-call' || callState === 'requesting';
@@ -413,12 +445,8 @@ const ChatRoom = () => {
                             <div className={`call-area ${isMobile ? 'mobile' : 'desktop'}`}
                                 style={{ height: isMobile ? '60vh' : `${callHeight}vh` }}>
 
-                                {/* Main Video (full size) */}
-                                <div
-                                    className="video-panel main-video"
-                                    style={{ flex: 1 }}
-                                    onDoubleClick={swapVideos}
-                                >
+                                {/* Main Video */}
+                                <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
                                     <video ref={mainVideoRef} autoPlay muted playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
 
@@ -435,7 +463,6 @@ const ChatRoom = () => {
 
                                     <span className="panel-label">{mainIsLocal ? 'YOU' : 'PARTNER'}</span>
 
-                                    {/* Controls on main video */}
                                     {mainIsLocal && (
                                         <div className="panel-controls">
                                             <button onClick={toggleMute} className="icon-btn"
@@ -452,14 +479,14 @@ const ChatRoom = () => {
                                     )}
                                 </div>
 
-                                {/* Small Floating Video (Picture-in-Picture) */}
+                                {/* PIP Video */}
                                 <div
                                     ref={pipRef}
                                     className="pip-video"
                                     style={{
                                         position: 'absolute',
-                                        width: isMobile ? '120px' : '180px',
-                                        height: isMobile ? '160px' : '240px',
+                                        width: isMobile ? '100px' : '180px',
+                                        height: isMobile ? '140px' : '240px',
                                         top: pipPos.y,
                                         left: pipPos.x,
                                         cursor: 'grab',
@@ -469,9 +496,7 @@ const ChatRoom = () => {
                                     onTouchStart={startDrag}
                                     onDoubleClick={swapVideos}
                                 >
-                                    <div className="pip-drag-handle">
-                                        <span>⠿</span>
-                                    </div>
+                                    <div className="pip-drag-handle"><span>⠿</span></div>
                                     <video ref={pipVideoRef} autoPlay muted playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
 
@@ -489,10 +514,83 @@ const ChatRoom = () => {
                                     <span className="pip-label">{pipIsLocal ? 'YOU' : 'PARTNER'}</span>
                                 </div>
 
+                                {/* Vertical Resize Handle */}
+                                <div className="resize-handle-v"
+                                    onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        const startY = e.clientY;
+                                        const startHeight = callHeight;
+                                        const onMouseMove = (me) => {
+                                            setCallHeight(Math.max(25, Math.min(70, startHeight + (startY - me.clientY) / window.innerHeight * 100)));
+                                        };
+                                        const onMouseUp = () => {
+                                            document.removeEventListener('mousemove', onMouseMove);
+                                            document.removeEventListener('mouseup', onMouseUp);
+                                        };
+                                        document.addEventListener('mousemove', onMouseMove);
+                                        document.addEventListener('mouseup', onMouseUp);
+                                    }}
+                                    onTouchStart={(e) => {
+                                        const startY = e.touches[0].clientY;
+                                        const startHeight = callHeight;
+                                        const onTouchMove = (me) => {
+                                            setCallHeight(Math.max(25, Math.min(70, startHeight + (startY - me.touches[0].clientY) / window.innerHeight * 100)));
+                                        };
+                                        const onTouchEnd = () => {
+                                            document.removeEventListener('touchmove', onTouchMove);
+                                            document.removeEventListener('touchend', onTouchEnd);
+                                        };
+                                        document.addEventListener('touchmove', onTouchMove, { passive: false });
+                                        document.addEventListener('touchend', onTouchEnd);
+                                    }}
+                                >
+                                    <div className="resize-handle-v-bar" />
+                                </div>
+
+                                {/* Kiss Closeness Indicator */}
+                                {kissCloseness > 0.3 && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        zIndex: 50,
+                                        pointerEvents: 'none',
+                                        opacity: kissCloseness,
+                                        transition: 'opacity 0.3s'
+                                    }}>
+                                        <span style={{ fontSize: `${20 + kissCloseness * 30}px` }}>
+                                            {kissCloseness > 0.8 ? '💕' : kissCloseness > 0.5 ? '💗' : '💓'}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Kiss Matches */}
+                                {kissMatches.map(match => (
+                                    <KissMatch
+                                        key={match.id}
+                                        match={match}
+                                        onComplete={() => setKissMatches(prev => prev.filter(m => m.id !== match.id))}
+                                    />
+                                ))}
+
                                 {/* Touch Overlay */}
                                 <TouchOverlay
                                     isVisible={isInCall}
-                                    onTouchSend={(touchData) => webrtcService.current?.sendTouchData(touchData)}
+                                    onTouchSend={(touchData) => {
+                                        webrtcService.current?.sendTouchData(touchData);
+                                        if (touchData.pattern === 'kiss') {
+                                            kissSyncRef.current.registerMyTouch(
+                                                touchData.timestamp || Date.now(),
+                                                touchData.x,
+                                                touchData.y,
+                                                touchData.pattern
+                                            );
+                                            setTimeout(() => {
+                                                kissSyncRef.current.removeMyTouch(touchData.timestamp || Date.now());
+                                            }, 2000);
+                                        }
+                                    }}
                                     receivedTouches={receivedTouches}
                                 />
                             </div>
