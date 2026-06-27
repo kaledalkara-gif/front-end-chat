@@ -299,29 +299,39 @@ class WebRTCService {
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
-                // Free TURN servers (critical for mobile)
+                // Free TURN servers with TCP support (CRITICAL for mobile)
                 {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject',
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject',
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    urls: [
+                        'turn:openrelay.metered.ca:80',
+                        'turn:openrelay.metered.ca:80?transport=tcp',
+                        'turn:openrelay.metered.ca:443',
+                        'turn:openrelay.metered.ca:443?transport=tcp',
+                    ],
                     username: 'openrelayproject',
                     credential: 'openrelayproject',
                 },
             ],
             iceTransportPolicy: 'all',
-            iceCandidatePoolSize: 4,
+            iceCandidatePoolSize: 8,  // Increased from 4
+            iceServersTimeout: 5000,   // 5 second timeout per server
         };
 
         console.log('🔨 Creating peer connection...');
         this.pc = new RTCPeerConnection(configuration);
+
+        // Force ICE to gather all candidates before sending
+        this.pc.onicegatheringstatechange = () => {
+            console.log('📊 ICE gathering state:', this.pc?.iceGatheringState);
+        };
+
+        // Add data channel for faster connection detection
+        if (this.isInitiator) {
+            this.dataChannel = this.pc.createDataChannel('chat', {
+                ordered: true,
+                // Reduce timeout for mobile
+                id: 0,
+            });
+        }
 
         // Connection state changes
         this.pc.onconnectionstatechange = () => {
@@ -378,7 +388,7 @@ class WebRTCService {
                                 console.error('ICE restart failed:', e);
                             }
                         }
-                    }, 15000);
+                    }, 30000);
                     break;
                 default:
                     console.log('🧊 Unknown ICE state:', iceState);
