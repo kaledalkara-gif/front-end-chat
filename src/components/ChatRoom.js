@@ -85,16 +85,34 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            // Set to dedicated audio element for voice calls
+            console.log('🔊 REMOTE STREAM RECEIVED');
+
+            // Set stream to all elements
             if (remoteAudioRef.current) {
                 remoteAudioRef.current.srcObject = stream;
+
+                // CRITICAL FOR MOBILE: Force play with user gesture context
+                const playAudio = () => {
+                    remoteAudioRef.current?.play()
+                        .then(() => console.log('✅ Remote audio playing'))
+                        .catch(e => console.log('Play failed:', e));
+                };
+
+                // Try immediate play
+                playAudio();
+
+                // Also try on next user interaction
+                document.addEventListener('click', playAudio, { once: true });
+                document.addEventListener('touchstart', playAudio, { once: true });
             }
-            // Set to video elements
-            if (mainVideoRef.current && !mainIsLocal) {
+
+            if (mainVideoRef.current) {
                 mainVideoRef.current.srcObject = stream;
+                mainVideoRef.current.volume = 1;
             }
-            if (pipVideoRef.current && !pipIsLocal) {
+            if (pipVideoRef.current) {
                 pipVideoRef.current.srcObject = stream;
+                pipVideoRef.current.volume = 1;
             }
         };
 
@@ -178,6 +196,21 @@ const ChatRoom = () => {
         };
     }, []);
 
+    // Unlock audio on first user interaction (critical for mobile)
+    useEffect(() => {
+        const unlock = () => {
+            unlockAudio();
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+        };
+        document.addEventListener('click', unlock);
+        document.addEventListener('touchstart', unlock);
+        return () => {
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('touchstart', unlock);
+        };
+    }, []);
+
     // Auto-scroll messages
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -218,6 +251,21 @@ const ChatRoom = () => {
     }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
 
     // ============ CALL HANDLERS ============
+
+
+    const unlockAudio = () => {
+        // Create and immediately play a silent audio context to unlock the browser
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0; // Silent
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start(0);
+        oscillator.stop(0.001);
+
+        console.log('🔓 Audio context unlocked');
+    };
 
     const swapVideos = () => {
         setMainIsLocal(prev => !prev);
@@ -528,6 +576,35 @@ const ChatRoom = () => {
 
                                 {/* Hidden audio element for voice calls */}
                                 <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
+                                {/* Tap to enable audio - mobile only */}
+                                {isMobile && isInCall && callType === 'voice' && (
+                                    <button
+                                        onClick={() => {
+                                            unlockAudio();
+                                            if (remoteAudioRef.current) {
+                                                remoteAudioRef.current.play().catch(() => { });
+                                            }
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            bottom: '50%',
+                                            left: '50%',
+                                            transform: 'translate(-50%, 50%)',
+                                            zIndex: 50,
+                                            padding: '12px 24px',
+                                            background: '#4caf50',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '25px',
+                                            fontSize: '16px',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        🔊 Tap to Hear Partner
+                                    </button>
+                                )}
 
                                 {/* Vertical Resize Handle */}
                                 <div className="resize-handle-v"
