@@ -77,11 +77,7 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            // ONLY set audio here. Video is handled by the sync useEffect
-            if (remoteAudioRef.current) {
-                remoteAudioRef.current.srcObject = stream;
-                remoteAudioRef.current.play().catch(() => { });
-            }
+            // Handled by sync useEffect
         };
 
         service.onRoomCreated = (id) => { setRoomId(id); setRoomCreated(true); };
@@ -126,7 +122,21 @@ const ChatRoom = () => {
         const local = webrtcService.current?.localStream;
         const remote = webrtcService.current?.remoteStream;
 
-        // Main video - show the correct person
+        if (!remote) return;
+
+        // Voice call: remote has only audio, use audio element
+        if (callType === 'voice') {
+            if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remote) {
+                remoteAudioRef.current.srcObject = remote;
+                remoteAudioRef.current.play().catch(() => { });
+            }
+            // Show audio indicator on video panels
+            if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
+            if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+            return;
+        }
+
+        // Video call: remote has audio + video
         if (mainVideoRef.current) {
             const streamForMain = mainIsLocal ? local : remote;
             if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
@@ -135,7 +145,6 @@ const ChatRoom = () => {
             mainVideoRef.current.muted = mainIsLocal;
         }
 
-        // PIP video - show the opposite person
         if (pipVideoRef.current) {
             const streamForPip = pipIsLocal ? local : remote;
             if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
@@ -144,12 +153,17 @@ const ChatRoom = () => {
             pipVideoRef.current.muted = pipIsLocal;
         }
 
-        // Audio element always gets remote
-        if (remoteAudioRef.current && remote) {
+        // Always set audio element as backup
+        if (remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = remote;
-            remoteAudioRef.current.play().catch(() => { });
+            if (callType === 'video') {
+                remoteAudioRef.current.volume = 0; // Mute audio element for video (audio comes from video tag)
+            } else {
+                remoteAudioRef.current.volume = 1;
+                remoteAudioRef.current.play().catch(() => { });
+            }
         }
-    }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
+    }, [mainIsLocal, callType, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
 
     const swapVideos = () => setMainIsLocal(prev => !prev);
 
