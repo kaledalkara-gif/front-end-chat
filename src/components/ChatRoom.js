@@ -62,39 +62,12 @@ const ChatRoom = () => {
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     };
 
-    // Screen resize
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Unlock audio on first user interaction (critical for mobile)
-    useEffect(() => {
-        const unlock = () => {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            gain.gain.value = 0;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(0.001);
-            if (remoteAudioRef.current?.srcObject) {
-                remoteAudioRef.current.play().catch(() => { });
-            }
-            document.removeEventListener('click', unlock);
-            document.removeEventListener('touchstart', unlock);
-        };
-        document.addEventListener('click', unlock);
-        document.addEventListener('touchstart', unlock);
-        return () => {
-            document.removeEventListener('click', unlock);
-            document.removeEventListener('touchstart', unlock);
-        };
-    }, []);
-
-    // Initialize WebRTC
     useEffect(() => {
         const service = new WebRTCService();
         webrtcService.current = service;
@@ -104,10 +77,15 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
-            console.log('🔊 Remote stream received, audio tracks:', stream.getAudioTracks().length);
             if (remoteAudioRef.current) {
                 remoteAudioRef.current.srcObject = stream;
                 remoteAudioRef.current.play().catch(() => { });
+            }
+            if (mainVideoRef.current) {
+                mainVideoRef.current.srcObject = stream;
+            }
+            if (pipVideoRef.current) {
+                pipVideoRef.current.srcObject = stream;
             }
         };
 
@@ -115,32 +93,11 @@ const ChatRoom = () => {
         service.onRoomJoined = (id) => { setRoomId(id); setIsConnected(true); setRoomCreated(true); };
         service.onPeerJoined = () => setIsConnected(true);
 
-        service.onIncomingCall = (type) => {
-            setIncomingCallType(type);
-            setCallState('ringing');
-        };
-
-        service.onCallAccepted = () => {
-            webrtcService.current?.onAcceptedByPeer();
-            setCallState('in-call');
-        };
-
-        service.onCallRejected = () => {
-            setCallState('idle');
-            setIncomingCallType(null);
-            clearMedia();
-        };
-
-        service.onCallEnded = () => {
-            setCallState('idle');
-            clearMedia();
-        };
-
-        service.onPeerLeft = () => {
-            setIsConnected(false);
-            setCallState('idle');
-            clearMedia();
-        };
+        service.onIncomingCall = (type) => { setIncomingCallType(type); setCallState('ringing'); };
+        service.onCallAccepted = () => { webrtcService.current?.onAcceptedByPeer(); setCallState('in-call'); };
+        service.onCallRejected = () => { setCallState('idle'); setIncomingCallType(null); clearMedia(); };
+        service.onCallEnded = () => { setCallState('idle'); clearMedia(); };
+        service.onPeerLeft = () => { setIsConnected(false); setCallState('idle'); clearMedia(); };
 
         service.onTouchReceived = (touchData) => {
             const touchWithId = { ...touchData, id: Date.now() + Math.random() };
@@ -150,9 +107,7 @@ const ChatRoom = () => {
                 kissSyncRef.current.registerPartnerTouch(touchWithId.id, touchData.x, touchData.y, touchData.pattern);
                 setTimeout(() => kissSyncRef.current.removePartnerTouch(touchWithId.id), 2000);
             }
-            setTimeout(() => {
-                setReceivedTouches(prev => prev.filter(t => t.id !== touchWithId.id));
-            }, TOUCH_PATTERNS[touchData.pattern]?.duration || 1500);
+            setTimeout(() => setReceivedTouches(prev => prev.filter(t => t.id !== touchWithId.id)), TOUCH_PATTERNS[touchData.pattern]?.duration || 1500);
         };
 
         service.onError = (msg) => console.error(msg);
@@ -160,219 +115,117 @@ const ChatRoom = () => {
 
         const kissSync = kissSyncRef.current;
         kissSync.onKissMatch = (match) => {
-            const matchWithId = { ...match, id: Date.now() };
-            setKissMatches(prev => [...prev.slice(-3), matchWithId]);
+            const m = { ...match, id: Date.now() };
+            setKissMatches(prev => [...prev.slice(-3), m]);
             if (navigator.vibrate) navigator.vibrate(KISS_MATCH_VIBRATION);
-            setTimeout(() => setKissMatches(prev => prev.filter(m => m.id !== matchWithId.id)), 3000);
+            setTimeout(() => setKissMatches(prev => prev.filter(k => k.id !== m.id)), 3000);
         };
-        kissSync.onKissProgress = (closeness) => setKissCloseness(closeness);
+        kissSync.onKissProgress = (c) => setKissCloseness(c);
 
-        return () => {
-            service.disconnect();
-            kissSync.reset();
-        };
+        return () => { service.disconnect(); kissSync.reset(); };
     }, []);
 
-    // Auto-scroll
+    useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
-
-    // Sync video refs - VIDEO ELEMENTS ALWAYS MUTED, audio handled by remoteAudioRef
-    useEffect(() => {
-        const localStream = webrtcService.current?.localStream;
-        const remoteStream = webrtcService.current?.remoteStream;
-
-        if (mainVideoRef.current) {
-            const streamForMain = mainIsLocal ? localStream : remoteStream;
-            if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
-                mainVideoRef.current.srcObject = streamForMain;
-            }
-            mainVideoRef.current.muted = true;
-        }
-
-        if (pipVideoRef.current) {
-            const streamForPip = pipIsLocal ? localStream : remoteStream;
-            if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
-                pipVideoRef.current.srcObject = streamForPip;
-            }
-            pipVideoRef.current.muted = true;
-        }
-
-        if (remoteAudioRef.current && remoteStream) {
-            if (remoteAudioRef.current.srcObject !== remoteStream) {
-                remoteAudioRef.current.srcObject = remoteStream;
-                remoteAudioRef.current.play().catch(() => { });
-            }
-        }
+        const local = webrtcService.current?.localStream;
+        const remote = webrtcService.current?.remoteStream;
+        if (mainVideoRef.current) { mainVideoRef.current.srcObject = mainIsLocal ? local : remote; mainVideoRef.current.muted = mainIsLocal; }
+        if (pipVideoRef.current) { pipVideoRef.current.srcObject = pipIsLocal ? local : remote; pipVideoRef.current.muted = pipIsLocal; }
+        if (remoteAudioRef.current && remote) { if (remoteAudioRef.current.srcObject !== remote) { remoteAudioRef.current.srcObject = remote; remoteAudioRef.current.play().catch(() => { }); } }
     }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
-
-    // ============ CALL HANDLERS ============
 
     const swapVideos = () => setMainIsLocal(prev => !prev);
 
     const startDrag = (e) => {
         e.preventDefault();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        dragStart.current = { x: clientX - pipPos.x, y: clientY - pipPos.y };
-        const onMove = (me) => {
-            const cx = me.touches ? me.touches[0].clientX : me.clientX;
-            const cy = me.touches ? me.touches[0].clientY : me.clientY;
-            const parent = pipRef.current?.parentElement;
-            if (!parent) return;
-            setPipPos({
-                x: Math.max(0, Math.min(parent.offsetWidth - (pipRef.current?.offsetWidth || 120), cx - dragStart.current.x)),
-                y: Math.max(0, Math.min(parent.offsetHeight - (pipRef.current?.offsetHeight || 160), cy - dragStart.current.y)),
-            });
+        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        dragStart.current = { x: cx - pipPos.x, y: cy - pipPos.y };
+        const mv = (me) => {
+            const mx = me.touches ? me.touches[0].clientX : me.clientX;
+            const my = me.touches ? me.touches[0].clientY : me.clientY;
+            const p = pipRef.current?.parentElement; if (!p) return;
+            setPipPos({ x: Math.max(0, Math.min(p.offsetWidth - 120, mx - dragStart.current.x)), y: Math.max(0, Math.min(p.offsetHeight - 160, my - dragStart.current.y)) });
         };
-        const onEnd = () => {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onEnd);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onEnd);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onEnd);
-        document.addEventListener('touchmove', onMove, { passive: false });
-        document.addEventListener('touchend', onEnd);
+        const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.removeEventListener('touchmove', mv); document.removeEventListener('touchend', up); };
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+        document.addEventListener('touchmove', mv, { passive: false }); document.addEventListener('touchend', up);
     };
 
     const handleStartCall = async (type) => {
-        setCallType(type);
-        setCallState('requesting');
+        setCallType(type); setCallState('requesting');
         try {
             await webrtcService.current?.startCall(type);
             setTimeout(() => {
-                const stream = webrtcService.current?.localStream;
-                if (stream) {
-                    if (mainVideoRef.current) { mainVideoRef.current.srcObject = stream; mainVideoRef.current.muted = true; }
-                    if (pipVideoRef.current) { pipVideoRef.current.srcObject = stream; pipVideoRef.current.muted = true; }
-                }
+                const s = webrtcService.current?.localStream;
+                if (s) { if (mainVideoRef.current) { mainVideoRef.current.srcObject = s; mainVideoRef.current.muted = true; } if (pipVideoRef.current) { pipVideoRef.current.srcObject = s; pipVideoRef.current.muted = true; } }
             }, 300);
-        } catch (err) {
-            setCallState('idle');
-        }
+        } catch (err) { setCallState('idle'); }
     };
 
     const handleAcceptCall = async () => {
-        const type = incomingCallType || 'video';
-        setCallType(type);
+        const type = incomingCallType || 'video'; setCallType(type);
         try {
             await webrtcService.current?.acceptIncomingCall(type);
-            setCallState('in-call');
-            setIncomingCallType(null);
+            setCallState('in-call'); setIncomingCallType(null);
             setTimeout(() => {
-                const stream = webrtcService.current?.localStream;
-                if (stream) {
-                    if (mainVideoRef.current) { mainVideoRef.current.srcObject = stream; mainVideoRef.current.muted = true; }
-                    if (pipVideoRef.current) { pipVideoRef.current.srcObject = stream; pipVideoRef.current.muted = true; }
-                }
+                const s = webrtcService.current?.localStream;
+                if (s) { if (mainVideoRef.current) { mainVideoRef.current.srcObject = s; mainVideoRef.current.muted = true; } if (pipVideoRef.current) { pipVideoRef.current.srcObject = s; pipVideoRef.current.muted = true; } }
             }, 500);
-        } catch (err) {
-            setCallState('idle');
-            setIncomingCallType(null);
-        }
+        } catch (err) { setCallState('idle'); setIncomingCallType(null); }
     };
 
     const handleRejectCall = () => { webrtcService.current?.rejectCall(); setCallState('idle'); setIncomingCallType(null); };
     const handleEndCall = () => { webrtcService.current?.endCall(); setCallState('idle'); clearMedia(); setKissMatches([]); setKissCloseness(0); };
 
     const toggleMute = () => {
-        const stream = webrtcService.current?.localStream;
-        if (stream) {
-            const audioTrack = stream.getAudioTracks()[0];
-            if (audioTrack) { audioTrack.enabled = !audioTrack.enabled; setIsMuted(!audioTrack.enabled); }
-        }
+        const t = webrtcService.current?.localStream?.getAudioTracks()[0];
+        if (t) { t.enabled = !t.enabled; setIsMuted(!t.enabled); }
     };
 
     const toggleCamera = () => {
-        const stream = webrtcService.current?.localStream;
-        if (stream) {
-            const videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) { videoTrack.enabled = !videoTrack.enabled; setIsCameraOff(!videoTrack.enabled); }
-        }
+        const t = webrtcService.current?.localStream?.getVideoTracks()[0];
+        if (t) { t.enabled = !t.enabled; setIsCameraOff(!t.enabled); }
     };
 
     const handleSendMessage = () => {
-        if (inputText.trim() && isConnected) {
-            webrtcService.current?.sendTextMessage(inputText);
-            setMessages(prev => [...prev, { text: inputText, fromMe: true, id: Date.now() }]);
-            setInputText('');
-        }
+        if (inputText.trim() && isConnected) { webrtcService.current?.sendTextMessage(inputText); setMessages(prev => [...prev, { text: inputText, fromMe: true, id: Date.now() }]); setInputText(''); }
     };
 
     const handleLeaveRoom = () => { handleEndCall(); webrtcService.current?.leaveRoom(); setIsConnected(false); setRoomCreated(false); setRoomId(''); setMessages([]); kissSyncRef.current.reset(); };
 
     const isInCall = callState === 'in-call' || callState === 'requesting';
-    const statusClass = isInCall ? 'in-call' : isConnected ? 'connected' : roomCreated ? 'waiting' : 'ready';
-    const statusText = isInCall ? '📹 In Call' : isConnected ? 'Connected' : roomCreated ? 'Waiting for partner' : 'Ready';
-
-    // ============ RENDER ============
+    const sc = isInCall ? 'in-call' : isConnected ? 'connected' : roomCreated ? 'waiting' : 'ready';
+    const st = isInCall ? '📹 In Call' : isConnected ? 'Connected' : roomCreated ? 'Waiting for partner' : 'Ready';
 
     return (
         <div className="chat-app">
-            <header className="app-header">
-                <h1>🔒 Secure Chat</h1>
-                {roomId && <span className="room-badge">Room: {roomId}</span>}
-            </header>
-
-            <div className={`status-bar ${statusClass}`}>
-                <span className="status-dot"></span>
-                <span>{statusText}</span>
-                {callState === 'requesting' && <span>📞 Calling...</span>}
-                {callState === 'ringing' && <span>📞 Incoming call!</span>}
-            </div>
+            <header className="app-header"><h1>🔒 Secure Chat</h1>{roomId && <span className="room-badge">Room: {roomId}</span>}</header>
+            <div className={`status-bar ${sc}`}><span className="status-dot"></span><span>{st}</span>{callState === 'requesting' && <span>📞 Calling...</span>}{callState === 'ringing' && <span>📞 Incoming call!</span>}</div>
 
             {callState === 'ringing' && (
-                <div className="call-modal-overlay">
-                    <div className="call-modal">
-                        <div className="call-modal-icon">{incomingCallType === 'video' ? '📹' : '🎤'}</div>
-                        <h2>Incoming {incomingCallType === 'video' ? 'Video' : 'Voice'} Call</h2>
-                        <p>Your partner wants to start a call</p>
-                        <div className="call-modal-actions">
-                            <button onClick={handleAcceptCall} className="btn btn-success btn-lg">✅ Accept</button>
-                            <button onClick={handleRejectCall} className="btn btn-danger btn-lg">❌ Reject</button>
-                        </div>
-                    </div>
-                </div>
+                <div className="call-modal-overlay"><div className="call-modal"><div className="call-modal-icon">{incomingCallType === 'video' ? '📹' : '🎤'}</div><h2>Incoming {incomingCallType === 'video' ? 'Video' : 'Voice'} Call</h2><p>Your partner wants to start a call</p><div className="call-modal-actions"><button onClick={handleAcceptCall} className="btn btn-success btn-lg">✅ Accept</button><button onClick={handleRejectCall} className="btn btn-danger btn-lg">❌ Reject</button></div></div></div>
             )}
 
             <div className="main-content">
                 {!roomCreated ? (
                     <div className="landing-page">
-                        <div className="landing-card">
-                            <div className="landing-icon">🏠</div>
-                            <h2>Create a New Room</h2>
-                            <button onClick={() => webrtcService.current?.createRoom()} className="btn btn-success btn-full btn-lg">Create Room</button>
-                        </div>
+                        <div className="landing-card"><div className="landing-icon">🏠</div><h2>Create a New Room</h2><button onClick={() => webrtcService.current?.createRoom()} className="btn btn-success btn-full btn-lg">Create Room</button></div>
                         <div className="divider-text">OR</div>
-                        <div className="landing-card">
-                            <div className="landing-icon">🚪</div>
-                            <h2>Join Existing Room</h2>
-                            {!showJoinInput ? (
-                                <button onClick={() => setShowJoinInput(true)} className="btn btn-primary btn-full btn-lg">Join Room</button>
-                            ) : (
-                                <div className="join-input-group">
-                                    <input value={joinRoomId} onChange={e => setJoinRoomId(e.target.value.toUpperCase())} placeholder="Room ID" maxLength={6} className="join-input" autoFocus />
-                                    <button onClick={() => { webrtcService.current?.joinRoom(joinRoomId); setShowJoinInput(false); }} className="btn btn-success">Join</button>
-                                    <button onClick={() => setShowJoinInput(false)} className="btn btn-secondary">✕</button>
-                                </div>
-                            )}
+                        <div className="landing-card"><div className="landing-icon">🚪</div><h2>Join Existing Room</h2>
+                            {!showJoinInput ? <button onClick={() => setShowJoinInput(true)} className="btn btn-primary btn-full btn-lg">Join Room</button> :
+                                <div className="join-input-group"><input value={joinRoomId} onChange={e => setJoinRoomId(e.target.value.toUpperCase())} placeholder="Room ID" maxLength={6} className="join-input" autoFocus /><button onClick={() => { webrtcService.current?.joinRoom(joinRoomId); setShowJoinInput(false); }} className="btn btn-success">Join</button><button onClick={() => setShowJoinInput(false)} className="btn btn-secondary">✕</button></div>}
                         </div>
                     </div>
                 ) : (
                     <>
+                        {/* AUDIO ELEMENT - Always present */}
+                        <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
                         <div className="action-bar">
-                            {isConnected && callState === 'idle' && (
-                                <>
-                                    <button onClick={() => handleStartCall('video')} className="btn btn-primary">📹 Video Call</button>
-                                    <button onClick={() => handleStartCall('voice')} className="btn btn-warning">🎤 Voice Call</button>
-                                </>
-                            )}
-                            {!isConnected && callState === 'idle' && (
-                                <span className="waiting-badge">⏳ Waiting for partner... (Room: {roomId})</span>
-                            )}
+                            {isConnected && callState === 'idle' && (<><button onClick={() => handleStartCall('video')} className="btn btn-primary">📹 Video Call</button><button onClick={() => handleStartCall('voice')} className="btn btn-warning">🎤 Voice Call</button></>)}
+                            {!isConnected && callState === 'idle' && <span className="waiting-badge">⏳ Waiting for partner... (Room: {roomId})</span>}
                             {callState === 'requesting' && <button onClick={handleEndCall} className="btn btn-danger">❌ Cancel</button>}
                             {callState === 'in-call' && <button onClick={handleEndCall} className="btn btn-danger">☎️ End Call</button>}
                             <button onClick={handleLeaveRoom} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>👋 Leave</button>
@@ -380,106 +233,41 @@ const ChatRoom = () => {
 
                         {isInCall && (
                             <div className={`call-area ${isMobile ? 'mobile' : 'desktop'}`} style={{ height: isMobile ? '60vh' : `${callHeight}vh` }}>
-                                {/* Main Video */}
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
-                                    <video ref={mainVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
-                                    {showMainOff && (
-                                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', color: 'white', zIndex: 5, gap: '8px' }}>
-                                            <span style={{ fontSize: '40px' }}>📷</span>
-                                            <span style={{ fontSize: '14px', color: '#f44336', fontWeight: 'bold' }}>Camera Off</span>
-                                        </div>
-                                    )}
+                                    <video ref={mainVideoRef} autoPlay muted={mainIsLocal} playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
+                                    {showMainOff && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', color: 'white', zIndex: 5, gap: '8px' }}><span style={{ fontSize: '40px' }}>📷</span><span style={{ fontSize: '14px', color: '#f44336', fontWeight: 'bold' }}>Camera Off</span></div>}
                                     <span className="panel-label">{mainIsLocal ? 'YOU' : 'PARTNER'}</span>
-                                    {mainIsLocal && (
-                                        <div className="panel-controls">
-                                            <button onClick={toggleMute} className="icon-btn" style={{ background: isMuted ? '#f44336' : 'rgba(0,0,0,0.6)' }}>{isMuted ? '🔇' : '🎤'}</button>
-                                            {callType === 'video' && (
-                                                <button onClick={toggleCamera} className="icon-btn" style={{ background: isCameraOff ? '#f44336' : 'rgba(0,0,0,0.6)' }}>{isCameraOff ? '📷❌' : '📷'}</button>
-                                            )}
-                                        </div>
-                                    )}
+                                    {mainIsLocal && <div className="panel-controls"><button onClick={toggleMute} className="icon-btn" style={{ background: isMuted ? '#f44336' : 'rgba(0,0,0,0.6)' }}>{isMuted ? '🔇' : '🎤'}</button>{callType === 'video' && <button onClick={toggleCamera} className="icon-btn" style={{ background: isCameraOff ? '#f44336' : 'rgba(0,0,0,0.6)' }}>{isCameraOff ? '📷❌' : '📷'}</button>}</div>}
                                 </div>
 
-                                {/* PIP Video */}
-                                <div ref={pipRef} className="pip-video" style={{ position: 'absolute', width: isMobile ? '100px' : '180px', height: isMobile ? '140px' : '240px', top: pipPos.y, left: pipPos.x, cursor: 'grab', zIndex: 20 }}
-                                    onMouseDown={startDrag} onTouchStart={startDrag} onDoubleClick={swapVideos}>
+                                <div ref={pipRef} className="pip-video" style={{ position: 'absolute', width: isMobile ? '100px' : '180px', height: isMobile ? '140px' : '240px', top: pipPos.y, left: pipPos.x, cursor: 'grab', zIndex: 20 }} onMouseDown={startDrag} onTouchStart={startDrag} onDoubleClick={swapVideos}>
                                     <div className="pip-drag-handle"><span>⠿</span></div>
-                                    <video ref={pipVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
-                                    {showPipOff && (
-                                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', borderRadius: '12px', color: 'white', zIndex: 5 }}>
-                                            <span style={{ fontSize: '24px' }}>📷❌</span>
-                                        </div>
-                                    )}
+                                    <video ref={pipVideoRef} autoPlay muted={pipIsLocal} playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
+                                    {showPipOff && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', borderRadius: '12px', color: 'white', zIndex: 5 }}><span style={{ fontSize: '24px' }}>📷❌</span></div>}
                                     <span className="pip-label">{pipIsLocal ? 'YOU' : 'PARTNER'}</span>
                                 </div>
 
-                                {/* Hidden audio element - handles ALL sound */}
-                                <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
-
-                                <div className="resize-handle-v"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault(); const startY = e.clientY; const startHeight = callHeight;
-                                        const onMove = (me) => setCallHeight(Math.max(25, Math.min(70, startHeight + (startY - me.clientY) / window.innerHeight * 100)));
-                                        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-                                        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-                                    }}>
+                                <div className="resize-handle-v" onMouseDown={(e) => { e.preventDefault(); const sy = e.clientY; const sh = callHeight; const mv = (me) => setCallHeight(Math.max(25, Math.min(70, sh + (sy - me.clientY) / window.innerHeight * 100))); const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }; document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); }}>
                                     <div className="resize-handle-v-bar" />
                                 </div>
 
-                                {kissCloseness > 0.3 && (
-                                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 50, pointerEvents: 'none', opacity: kissCloseness }}>
-                                        <span style={{ fontSize: `${20 + kissCloseness * 30}px` }}>{kissCloseness > 0.8 ? '💕' : kissCloseness > 0.5 ? '💗' : '💓'}</span>
-                                    </div>
-                                )}
-
-                                {kissMatches.map(match => (
-                                    <KissMatch key={match.id} match={match} onComplete={() => setKissMatches(prev => prev.filter(m => m.id !== match.id))} />
-                                ))}
-
-                                <TouchOverlay isVisible={isInCall}
-                                    onTouchSend={(touchData) => {
-                                        webrtcService.current?.sendTouchData(touchData);
-                                        if (touchData.pattern === 'kiss') {
-                                            kissSyncRef.current.registerMyTouch(touchData.timestamp || Date.now(), touchData.x, touchData.y, touchData.pattern);
-                                            setTimeout(() => kissSyncRef.current.removeMyTouch(touchData.timestamp || Date.now()), 2000);
-                                        }
-                                    }}
-                                    receivedTouches={receivedTouches} />
+                                {kissCloseness > 0.3 && <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 50, pointerEvents: 'none', opacity: kissCloseness }}><span style={{ fontSize: `${20 + kissCloseness * 30}px` }}>{kissCloseness > 0.8 ? '💕' : kissCloseness > 0.5 ? '💗' : '💓'}</span></div>}
+                                {kissMatches.map(m => <KissMatch key={m.id} match={m} onComplete={() => setKissMatches(prev => prev.filter(k => k.id !== m.id))} />)}
+                                <TouchOverlay isVisible={isInCall} onTouchSend={(td) => { webrtcService.current?.sendTouchData(td); if (td.pattern === 'kiss') { kissSyncRef.current.registerMyTouch(td.timestamp || Date.now(), td.x, td.y, td.pattern); setTimeout(() => kissSyncRef.current.removeMyTouch(td.timestamp || Date.now()), 2000); } }} receivedTouches={receivedTouches} />
                             </div>
                         )}
 
                         <div className="chat-area">
                             <div className="messages-container">
                                 {messages.length === 0 && <div className="empty-chat">{isConnected ? '💬 Start chatting...' : `📋 Share Room ID "${roomId}" with your partner`}</div>}
-                                {messages.map(msg => (
-                                    <div key={msg.id} className={`message ${msg.fromMe ? 'sent' : 'received'}`}><div className="message-bubble">{msg.text}</div></div>
-                                ))}
+                                {messages.map(msg => <div key={msg.id} className={`message ${msg.fromMe ? 'sent' : 'received'}`}><div className="message-bubble">{msg.text}</div></div>)}
                                 <div ref={messagesEndRef} />
                             </div>
                             <div className="input-area">
                                 <button onClick={() => setShowEmojis(!showEmojis)} className="emoji-toggle-btn">😊</button>
-                                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()}
-                                    placeholder={isConnected ? "Type a message..." : "Waiting for partner..."} disabled={!isConnected} className="message-input" />
+                                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()} placeholder={isConnected ? "Type a message..." : "Waiting for partner..."} disabled={!isConnected} className="message-input" />
                                 <button onClick={handleSendMessage} disabled={!isConnected} className="send-btn">➤</button>
-                                {showEmojis && (
-                                    <div className="emoji-picker-container">
-                                        <div className="emoji-categories">
-                                            {Object.keys(EMOJIS).map(cat => (
-                                                <button key={cat} onClick={() => document.getElementById(`emoji-cat-${cat}`)?.scrollIntoView({ behavior: 'smooth' })} className="emoji-cat-btn">{cat}</button>
-                                            ))}
-                                        </div>
-                                        {Object.entries(EMOJIS).map(([category, emojis]) => (
-                                            <div key={category} id={`emoji-cat-${category}`}>
-                                                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', textTransform: 'uppercase', margin: '8px 0 4px' }}>{category}</div>
-                                                <div className="emoji-grid">
-                                                    {emojis.map((emoji, i) => (
-                                                        <button key={i} onClick={() => setInputText(prev => prev + emoji)} className="emoji-item">{emoji}</button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                {showEmojis && (<div className="emoji-picker-container"><div className="emoji-categories">{Object.keys(EMOJIS).map(cat => <button key={cat} onClick={() => document.getElementById(`emoji-cat-${cat}`)?.scrollIntoView({ behavior: 'smooth' })} className="emoji-cat-btn">{cat}</button>)}</div>{Object.entries(EMOJIS).map(([cat, ems]) => <div key={cat} id={`emoji-cat-${cat}`}><div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px', textTransform: 'uppercase', margin: '8px 0 4px' }}>{cat}</div><div className="emoji-grid">{ems.map((e, i) => <button key={i} onClick={() => setInputText(prev => prev + e)} className="emoji-item">{e}</button>)}</div></div>)}</div>)}
                                 {showEmojis && <div onClick={() => setShowEmojis(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }} />}
                             </div>
                         </div>
