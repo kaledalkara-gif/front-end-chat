@@ -183,7 +183,7 @@ const ChatRoom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Sync video refs with correct streams and mute settings
+    // Sync video refs with correct streams and audio settings
     useEffect(() => {
         const localStream = webrtcService.current?.localStream;
         const remoteStream = webrtcService.current?.remoteStream;
@@ -194,8 +194,8 @@ const ChatRoom = () => {
             if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
                 mainVideoRef.current.srcObject = streamForMain;
             }
-            // MUTE local, UNMUTE remote so you can hear your partner!
-            mainVideoRef.current.muted = mainIsLocal;
+            // Use volume instead of muted
+            mainVideoRef.current.volume = mainIsLocal ? 0 : 1;
         }
 
         // PIP video
@@ -204,15 +204,16 @@ const ChatRoom = () => {
             if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
                 pipVideoRef.current.srcObject = streamForPip;
             }
-            // MUTE local, UNMUTE remote
-            pipVideoRef.current.muted = pipIsLocal;
+            // Use volume instead of muted
+            pipVideoRef.current.volume = pipIsLocal ? 0 : 1;
         }
 
-        // Audio element (for voice calls)
+        // Dedicated audio element for remote audio
         if (remoteAudioRef.current && remoteStream) {
             if (remoteAudioRef.current.srcObject !== remoteStream) {
                 remoteAudioRef.current.srcObject = remoteStream;
             }
+            remoteAudioRef.current.volume = 1;
         }
     }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
 
@@ -270,12 +271,12 @@ const ChatRoom = () => {
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
-                        mainVideoRef.current.muted = true;
+                        mainVideoRef.current.volume = 0;
                         mainVideoRef.current.play().catch(() => { });
                     }
                     if (pipVideoRef.current) {
                         pipVideoRef.current.srcObject = stream;
-                        pipVideoRef.current.muted = true;
+                        pipVideoRef.current.volume = 0;
                     }
                 }
             }, 300);
@@ -297,12 +298,12 @@ const ChatRoom = () => {
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
-                        mainVideoRef.current.muted = true;
+                        mainVideoRef.current.volume = 0;
                         mainVideoRef.current.play().catch(() => { });
                     }
                     if (pipVideoRef.current) {
                         pipVideoRef.current.srcObject = stream;
-                        pipVideoRef.current.muted = true;
+                        pipVideoRef.current.volume = 0;
                     }
                 }
             }, 500);
@@ -458,7 +459,7 @@ const ChatRoom = () => {
 
                                 {/* Main Video */}
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
-                                    <video ref={mainVideoRef} autoPlay muted={mainIsLocal} playsInline
+                                    <video ref={mainVideoRef} autoPlay playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
 
                                     {showMainOff && (
@@ -508,7 +509,7 @@ const ChatRoom = () => {
                                     onDoubleClick={swapVideos}
                                 >
                                     <div className="pip-drag-handle"><span>⠿</span></div>
-                                    <video ref={pipVideoRef} autoPlay muted={pipIsLocal} playsInline
+                                    <video ref={pipVideoRef} autoPlay playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
 
                                     {showPipOff && (
