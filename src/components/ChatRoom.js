@@ -124,44 +124,31 @@ const ChatRoom = () => {
 
         if (!remote) return;
 
-        // Voice call: remote has only audio, use audio element
-        if (callType === 'voice') {
-            if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remote) {
-                remoteAudioRef.current.srcObject = remote;
-                remoteAudioRef.current.play().catch(() => { });
+        // Clone the remote stream so audio and video can be used separately
+        // This is the key: video element gets video+audio, audio element gets audio only
+        const audioOnlyStream = new MediaStream();
+        remote.getAudioTracks().forEach(track => audioOnlyStream.addTrack(track));
+
+        // Audio element always gets the audio-only stream
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = audioOnlyStream;
+            remoteAudioRef.current.play().catch(() => { });
+        }
+
+        // Video call
+        if (callType === 'video') {
+            if (mainVideoRef.current) {
+                mainVideoRef.current.srcObject = mainIsLocal ? local : remote;
+                mainVideoRef.current.muted = mainIsLocal;
             }
-            // Show audio indicator on video panels
+            if (pipVideoRef.current) {
+                pipVideoRef.current.srcObject = pipIsLocal ? local : remote;
+                pipVideoRef.current.muted = pipIsLocal;
+            }
+        } else {
+            // Voice call - clear video elements
             if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
             if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
-            return;
-        }
-
-        // Video call: remote has audio + video
-        if (mainVideoRef.current) {
-            const streamForMain = mainIsLocal ? local : remote;
-            if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
-                mainVideoRef.current.srcObject = streamForMain;
-            }
-            mainVideoRef.current.muted = mainIsLocal;
-        }
-
-        if (pipVideoRef.current) {
-            const streamForPip = pipIsLocal ? local : remote;
-            if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
-                pipVideoRef.current.srcObject = streamForPip;
-            }
-            pipVideoRef.current.muted = pipIsLocal;
-        }
-
-        // Always set audio element as backup
-        if (remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remote;
-            if (callType === 'video') {
-                remoteAudioRef.current.volume = 0; // Mute audio element for video (audio comes from video tag)
-            } else {
-                remoteAudioRef.current.volume = 1;
-                remoteAudioRef.current.play().catch(() => { });
-            }
         }
     }, [mainIsLocal, callType, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
 
