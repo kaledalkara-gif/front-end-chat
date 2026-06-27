@@ -46,6 +46,7 @@ const ChatRoom = () => {
     const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
     const pipVideoRef = useRef(null);
+    const remoteAudioRef = useRef(null);
     const messagesEndRef = useRef(null);
     const pipRef = useRef(null);
     const kissSyncRef = useRef(new KissSyncService());
@@ -62,6 +63,7 @@ const ChatRoom = () => {
         setIsCameraOff(false);
         if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
         if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     };
 
     // ============ EFFECTS ============
@@ -83,6 +85,11 @@ const ChatRoom = () => {
         };
 
         service.onRemoteStream = (stream) => {
+            // Set to dedicated audio element for voice calls
+            if (remoteAudioRef.current) {
+                remoteAudioRef.current.srcObject = stream;
+            }
+            // Set to video elements
             if (mainVideoRef.current && !mainIsLocal) {
                 mainVideoRef.current.srcObject = stream;
             }
@@ -128,7 +135,6 @@ const ChatRoom = () => {
             setReceivedTouches(prev => [...prev.slice(-5), touchWithId]);
             HapticService.vibrate(touchData.pattern);
 
-            // Register partner's kiss for sync
             if (touchData.pattern === 'kiss') {
                 kissSyncRef.current.registerPartnerTouch(
                     touchWithId.id,
@@ -154,11 +160,9 @@ const ChatRoom = () => {
         kissSync.onKissMatch = (match) => {
             const matchWithId = { ...match, id: Date.now() };
             setKissMatches(prev => [...prev.slice(-3), matchWithId]);
-
             if (navigator.vibrate) {
                 navigator.vibrate(KISS_MATCH_VIBRATION);
             }
-
             setTimeout(() => {
                 setKissMatches(prev => prev.filter(m => m.id !== matchWithId.id));
             }, 3000);
@@ -179,22 +183,35 @@ const ChatRoom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Sync video refs
+    // Sync video refs with correct streams and mute settings
     useEffect(() => {
         const localStream = webrtcService.current?.localStream;
         const remoteStream = webrtcService.current?.remoteStream;
 
+        // Main video
         if (mainVideoRef.current) {
             const streamForMain = mainIsLocal ? localStream : remoteStream;
             if (streamForMain && mainVideoRef.current.srcObject !== streamForMain) {
                 mainVideoRef.current.srcObject = streamForMain;
             }
+            // MUTE local, UNMUTE remote so you can hear your partner!
+            mainVideoRef.current.muted = mainIsLocal;
         }
 
+        // PIP video
         if (pipVideoRef.current) {
             const streamForPip = pipIsLocal ? localStream : remoteStream;
             if (streamForPip && pipVideoRef.current.srcObject !== streamForPip) {
                 pipVideoRef.current.srcObject = streamForPip;
+            }
+            // MUTE local, UNMUTE remote
+            pipVideoRef.current.muted = pipIsLocal;
+        }
+
+        // Audio element (for voice calls)
+        if (remoteAudioRef.current && remoteStream) {
+            if (remoteAudioRef.current.srcObject !== remoteStream) {
+                remoteAudioRef.current.srcObject = remoteStream;
             }
         }
     }, [mainIsLocal, webrtcService.current?.localStream, webrtcService.current?.remoteStream]);
@@ -253,15 +270,12 @@ const ChatRoom = () => {
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
-                        mainVideoRef.current.play().catch(() => {
-                            if (mainVideoRef.current) {
-                                mainVideoRef.current.muted = true;
-                                mainVideoRef.current.play().catch(() => { });
-                            }
-                        });
+                        mainVideoRef.current.muted = true;
+                        mainVideoRef.current.play().catch(() => { });
                     }
                     if (pipVideoRef.current) {
                         pipVideoRef.current.srcObject = stream;
+                        pipVideoRef.current.muted = true;
                     }
                 }
             }, 300);
@@ -283,15 +297,12 @@ const ChatRoom = () => {
                 if (stream) {
                     if (mainVideoRef.current) {
                         mainVideoRef.current.srcObject = stream;
-                        mainVideoRef.current.play().catch(() => {
-                            if (mainVideoRef.current) {
-                                mainVideoRef.current.muted = true;
-                                mainVideoRef.current.play().catch(() => { });
-                            }
-                        });
+                        mainVideoRef.current.muted = true;
+                        mainVideoRef.current.play().catch(() => { });
                     }
                     if (pipVideoRef.current) {
                         pipVideoRef.current.srcObject = stream;
+                        pipVideoRef.current.muted = true;
                     }
                 }
             }, 500);
@@ -447,7 +458,7 @@ const ChatRoom = () => {
 
                                 {/* Main Video */}
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
-                                    <video ref={mainVideoRef} autoPlay muted playsInline
+                                    <video ref={mainVideoRef} autoPlay muted={mainIsLocal} playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
 
                                     {showMainOff && (
@@ -497,7 +508,7 @@ const ChatRoom = () => {
                                     onDoubleClick={swapVideos}
                                 >
                                     <div className="pip-drag-handle"><span>⠿</span></div>
-                                    <video ref={pipVideoRef} autoPlay muted playsInline
+                                    <video ref={pipVideoRef} autoPlay muted={pipIsLocal} playsInline
                                         style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
 
                                     {showPipOff && (
@@ -513,6 +524,9 @@ const ChatRoom = () => {
 
                                     <span className="pip-label">{pipIsLocal ? 'YOU' : 'PARTNER'}</span>
                                 </div>
+
+                                {/* Hidden audio element for voice calls */}
+                                <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
 
                                 {/* Vertical Resize Handle */}
                                 <div className="resize-handle-v"
@@ -550,13 +564,9 @@ const ChatRoom = () => {
                                 {/* Kiss Closeness Indicator */}
                                 {kissCloseness > 0.3 && (
                                     <div style={{
-                                        position: 'absolute',
-                                        top: '50%',
-                                        left: '50%',
-                                        transform: 'translate(-50%, -50%)',
-                                        zIndex: 50,
-                                        pointerEvents: 'none',
-                                        opacity: kissCloseness,
+                                        position: 'absolute', top: '50%', left: '50%',
+                                        transform: 'translate(-50%, -50%)', zIndex: 50,
+                                        pointerEvents: 'none', opacity: kissCloseness,
                                         transition: 'opacity 0.3s'
                                     }}>
                                         <span style={{ fontSize: `${20 + kissCloseness * 30}px` }}>
