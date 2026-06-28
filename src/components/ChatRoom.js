@@ -6,6 +6,7 @@ import TouchOverlay from './TouchOverlay';
 import KissMatch from './KissMatch';
 import './ChatRoom.css';
 
+
 const EMOJIS = {
     faces: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😋', '😜', '🤪', '😝', '🤗', '🤔', '😐', '😶', '😏', '😒', '🙄', '😬', '😮', '😲', '😳', '🥺', '😢', '😭', '😤', '😡', '🤬', '😈', '👿', '💀', '🤡', '👻', '💪', '👍', '👎', '👏', '🙌', '🤝', '🙏'],
     hearts: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝'],
@@ -80,6 +81,10 @@ const ChatRoom = () => {
     const showMainOff = mainIsLocal ? isCameraOff : false;
     const showPipOff = pipIsLocal ? isCameraOff : false;
     const pipSize = isMobile ? PIP_SIZE.mobile : PIP_SIZE.desktop;
+
+    const handleCompleteKiss = useCallback((matchId) => {
+        setKissMatches(prev => prev.filter(k => k.id !== matchId));
+    }, []);
 
     const clearMedia = useCallback(() => {
         setIsMuted(false);
@@ -416,9 +421,7 @@ const ChatRoom = () => {
                                     <KissMatch
                                         key={m.id}
                                         match={m}
-                                        onComplete={useCallback(() => {
-                                            setKissMatches(prev => prev.filter(k => k.id !== m.id));
-                                        }, [])}
+                                        onComplete={() => handleCompleteKiss(m.id)}
                                     />
                                 ))}
 
