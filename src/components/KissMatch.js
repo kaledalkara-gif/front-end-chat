@@ -1,12 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import './KissMatch.css';
 
+// Static spark mapping outside render loop - prevents garbage collection spikes
+const SPARK_PARTICLES = [...Array(12)];
+
+// Pre-defined colors and emojis - no inline array creation
+const HEART_COLORS = ['#ff4081', '#ff6d75', '#ff1744', '#f50057', '#ff80ab'];
+const HEART_EMOJIS = ['💕', '💖', '💘', '💝', '✨', '💫', '❤️'];
+
 const KissMatch = ({ match, onComplete }) => {
     const [phase, setPhase] = useState('spark');
     const [hearts, setHearts] = useState([]);
 
     useEffect(() => {
-        // Generate floating hearts
+        // Safety guard: Exit if no match data
+        if (!match) return;
+
+        // Generate floating hearts once
         const newHearts = [];
         for (let i = 0; i < 20; i++) {
             newHearts.push({
@@ -15,18 +25,28 @@ const KissMatch = ({ match, onComplete }) => {
                 y: -(Math.random() * 100 + 50),
                 size: Math.random() * 20 + 10,
                 delay: Math.random() * 0.5,
-                color: ['#ff4081', '#ff6d75', '#ff1744', '#f50057', '#ff80ab'][Math.floor(Math.random() * 5)],
-                emoji: ['💕', '💖', '💘', '💝', '✨', '💫', '❤️'][Math.floor(Math.random() * 7)],
+                color: HEART_COLORS[Math.floor(Math.random() * HEART_COLORS.length)],
+                emoji: HEART_EMOJIS[Math.floor(Math.random() * HEART_EMOJIS.length)],
             });
         }
         setHearts(newHearts);
 
-        // Animation phases
-        setTimeout(() => setPhase('explosion'), 300);
-        setTimeout(() => setPhase('hearts'), 600);
-        setTimeout(() => onComplete?.(), 3000);
-    }, [onComplete]);
+        // Capture timer references for cleanup
+        const timer1 = setTimeout(() => setPhase('explosion'), 300);
+        const timer2 = setTimeout(() => setPhase('hearts'), 600);
+        const timer3 = setTimeout(() => {
+            if (onComplete) onComplete();
+        }, 3000);
 
+        // Cleanup: Clear all timers if component unmounts mid-animation
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+            clearTimeout(timer3);
+        };
+    }, [match, onComplete]);
+
+    // Safety check at render level
     if (!match) return null;
 
     return (
@@ -62,8 +82,8 @@ const KissMatch = ({ match, onComplete }) => {
                 </div>
             ))}
 
-            {/* Sparkle particles */}
-            {[...Array(12)].map((_, i) => (
+            {/* Sparkle particles - using static array */}
+            {SPARK_PARTICLES.map((_, i) => (
                 <div
                     key={`spark-${i}`}
                     className="spark-particle"

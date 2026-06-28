@@ -8,12 +8,13 @@ class WebRTCService {
         this.pc = null;
         this.localStream = null;
         this.remoteStream = null;
+        this.dataChannel = null;
         this.isCallInitiator = false;
         this.connectionTimeout = null;
 
-        // Callbacks
         this.onMessage = null;
         this.onRemoteStream = null;
+        this.onLocalStream = null;
         this.onConnectionStateChange = null;
         this.onRoomCreated = null;
         this.onRoomJoined = null;
@@ -108,9 +109,7 @@ class WebRTCService {
             this.onMessage?.(text);
         });
 
-        // Add this with the other socket.on listeners
         this.socket.on('touch-data', (data) => {
-            console.log('🖐️ Touch data received via socket');
             this.onTouchReceived?.(data);
         });
 
@@ -127,18 +126,8 @@ class WebRTCService {
 
         this.socket.on('disconnect', (reason) => {
             console.log('🔌 Disconnected:', reason);
-            if (reason === 'io server disconnect') {
-                // Server disconnected us, try reconnecting
-                this.socket.connect();
-            }
-        });
-
-        this.socket.on('touch-data', (data) => {
-            this.onTouchReceived?.(data);
         });
     }
-
-    // ============ TEXT MESSAGING ============
 
     sendTextMessage(text) {
         if (text && text.trim()) {
@@ -146,64 +135,45 @@ class WebRTCService {
         }
     }
 
-    // ============ CALL FLOW ============
-
-    async startCall(callType) {
-        console.log('📞 Starting call as INITIATOR:', callType);
-        this.isCallInitiator = true;
-
-        try {
-            // Get local media first
-            await this.getLocalStream(callType);
-
-            // Create peer connection
-            this.createPeerConnection();
-
-            // Add local tracks to peer connection
-            this.addLocalTracks();
-
-            // Send call request to peer
-            this.socket.emit('call-request', { callType });
-
-            console.log('✅ Call request sent, waiting for peer to accept...');
-        } catch (error) {
-            console.error('❌ Failed to start call:', error);
-            this.stopLocalStream();
-            throw error;
-        }
-    }
-
     sendTouchData(touchData) {
-        if (this.dataChannel?.readyState === 'open') {
+        if (this.dataChannel && this.dataChannel.readyState === 'open') {
             this.dataChannel.send(JSON.stringify({ type: 'touch', ...touchData }));
         } else {
-            // Fallback to socket
             this.socket.emit('touch-data', touchData);
         }
     }
 
-    async acceptIncomingCall(callType) {
-        console.log('✅ Accepting call as RECEIVER:', callType);
-        this.isCallInitiator = false;
-
+    async startCall(callType) {
+        console.log('📞 Starting call:', callType);
+        this.isCallInitiator = true;
         try {
-            // Get local media
             await this.getLocalStream(callType);
+            this.createPeerConnection();
+            this.addLocalTracks();
+            this.socket.emit('call-request', { callType });
+        } catch (error) {
+            console.error('❌ Failed to start call:', error);
+            this.stopLocalStream();
+            this.onError?.(error.message || 'Failed to start call');
+            throw error;
+        }
+    }
 
-            // Tell initiator we accept
+    async acceptIncomingCall(callType) {
+        console.log('✅ Accepting call:', callType);
+        this.isCallInitiator = false;
+        try {
+            await this.getLocalStream(callType);
             this.socket.emit('call-accepted');
-
-            console.log('✅ Acceptance sent, waiting for offer...');
         } catch (error) {
             console.error('❌ Failed to accept call:', error);
             this.socket.emit('call-rejected');
+            this.onError?.(error.message || 'Failed to accept call');
             throw error;
         }
     }
 
     onAcceptedByPeer() {
-        console.log('📤 Peer accepted, creating offer...');
-        // If we don't have a peer connection yet, create one
         if (!this.pc || this.pc.connectionState === 'closed') {
             this.createPeerConnection();
             this.addLocalTracks();
@@ -212,23 +182,18 @@ class WebRTCService {
     }
 
     rejectCall() {
-        console.log('❌ Rejecting call');
         this.socket.emit('call-rejected');
         this.stopLocalStream();
     }
 
     endCall() {
-        console.log('☎️ Ending call');
         this.socket.emit('call-ended');
         this.cleanup();
     }
 
-    // ============ MEDIA ============
-
     async getLocalStream(type) {
         try {
             this.stopLocalStream();
-
             const constraints = {
                 audio: {
                     echoCancellation: true,
@@ -243,357 +208,200 @@ class WebRTCService {
                 } : false,
             };
 
-            console.log('🎥 Requesting media with constraints:', constraints);
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
             console.log('✅ Local stream ready. Tracks:', this.localStream.getTracks().length);
-
-            // Log each track
-            this.localStream.getTracks().forEach((track) => {
-                console.log(`  Track: ${track.kind} - ${track.label} (${track.readyState})`);
-            });
-
+            this.onLocalStream?.(this.localStream);
             return this.localStream;
         } catch (error) {
-            console.error('❌ Media error:', error.name, error.message);
-
-            if (error.name === 'NotAllowedError') {
-                throw new Error('Camera/microphone access denied. Please allow permissions in your browser settings.');
-            } else if (error.name === 'NotFoundError') {
-                throw new Error('No camera or microphone found. Please connect a device.');
-            } else if (error.name === 'NotReadableError') {
-                throw new Error('Camera/microphone is already in use by another application.');
-            } else {
-                throw new Error('Failed to access media: ' + error.message);
-            }
+            console.error('❌ Media error:', error);
+            let message = 'Failed to access media.';
+            if (error.name === 'NotAllowedError') message = 'Camera/microphone access denied. Please allow permissions.';
+            else if (error.name === 'NotFoundError') message = 'No camera or microphone found.';
+            else if (error.name === 'NotReadableError') message = 'Camera/microphone already in use.';
+            this.onError?.(message);
+            throw new Error(message);
         }
     }
 
     stopLocalStream() {
         if (this.localStream) {
-            this.localStream.getTracks().forEach((track) => track.stop());
+            this.localStream.getTracks().forEach(t => t.stop());
             this.localStream = null;
-            console.log('🛑 Local stream stopped');
+            this.onLocalStream?.(null);
         }
     }
 
-    // ============ WEBRTC ============
-
     createPeerConnection() {
-        // Close existing connection if any
-        if (this.pc) {
-            this.pc.close();
-            this.pc = null;
-        }
-
-        // Clear any existing timeout
-        if (this.connectionTimeout) {
-            clearTimeout(this.connectionTimeout);
-            this.connectionTimeout = null;
-        }
+        if (this.pc) { this.pc.close(); this.pc = null; }
+        if (this.connectionTimeout) { clearTimeout(this.connectionTimeout); this.connectionTimeout = null; }
 
         const configuration = {
             iceServers: [
-                // Google STUN servers
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
-                // Free TURN servers with TCP support (CRITICAL for mobile)
                 {
-                    urls: [
-                        'turn:openrelay.metered.ca:80',
-                        'turn:openrelay.metered.ca:80?transport=tcp',
-                        'turn:openrelay.metered.ca:443',
-                        'turn:openrelay.metered.ca:443?transport=tcp',
-                    ],
+                    urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:80?transport=tcp', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
                     username: 'openrelayproject',
                     credential: 'openrelayproject',
                 },
             ],
             iceTransportPolicy: 'all',
-            iceCandidatePoolSize: 8,  // Increased from 4
-            iceServersTimeout: 5000,   // 5 second timeout per server
+            iceCandidatePoolSize: 8,
         };
 
-        console.log('🔨 Creating peer connection...');
         this.pc = new RTCPeerConnection(configuration);
 
-        // Force ICE to gather all candidates before sending
-        this.pc.onicegatheringstatechange = () => {
-            console.log('📊 ICE gathering state:', this.pc?.iceGatheringState);
-        };
+        this.pc.onicegatheringstatechange = () => console.log('📊 ICE gathering:', this.pc?.iceGatheringState);
 
-        // Add data channel for faster connection detection
-        if (this.isInitiator) {
-            this.dataChannel = this.pc.createDataChannel('chat', {
-                ordered: true,
-                // Reduce timeout for mobile
-                id: 0,
-            });
+        if (this.isCallInitiator) {
+            this.dataChannel = this.pc.createDataChannel('chat', { ordered: true, id: 0 });
+            this.setupDataChannelListeners();
+        } else {
+            this.pc.ondatachannel = (event) => {
+                this.dataChannel = event.channel;
+                this.setupDataChannelListeners();
+            };
         }
 
-        // Connection state changes
         this.pc.onconnectionstatechange = () => {
             const state = this.pc?.connectionState;
-            console.log('🔄 Peer connection state:', state);
+            console.log('🔄 PC state:', state);
             this.onConnectionStateChange?.(state);
-
-            if (state === 'connected') {
-                console.log('✅ P2P connection established!');
-            } else if (state === 'failed') {
-                console.error('❌ P2P connection failed');
+            if (state === 'failed') {
                 this.onError?.('Connection failed. Please try again.');
             }
         };
 
-        // ICE connection state changes
         this.pc.oniceconnectionstatechange = () => {
             const iceState = this.pc?.iceConnectionState;
-            console.log('🧊 ICE state:', iceState);
-
-            // Clear any existing timeout
-            if (this.connectionTimeout) {
-                clearTimeout(this.connectionTimeout);
-            }
-
+            console.log('🧊 ICE:', iceState);
+            if (this.connectionTimeout) { clearTimeout(this.connectionTimeout); this.connectionTimeout = null; }
             switch (iceState) {
-                case 'connected':
-                    console.log('✅ ICE connected');
-                    break;
-
+                case 'connected': break;
                 case 'disconnected':
-                    console.log('🔄 ICE disconnected, attempting restart...');
-                    try {
-                        this.pc?.restartIce();
-                    } catch (e) {
-                        console.error('ICE restart failed:', e);
-                    }
+                    try { this.pc?.restartIce(); } catch (e) { }
                     break;
-
                 case 'failed':
-                    console.error('❌ ICE failed completely');
                     this.onCallEnded?.();
                     break;
-
                 case 'checking':
-                    console.log('🔍 ICE checking...');
-                    // Set timeout - if still checking after 15 seconds, restart
                     this.connectionTimeout = setTimeout(() => {
                         if (this.pc?.iceConnectionState === 'checking') {
-                            console.log('⏰ ICE checking timeout - restarting');
-                            try {
-                                this.pc?.restartIce();
-                            } catch (e) {
-                                console.error('ICE restart failed:', e);
-                            }
+                            try { this.pc?.restartIce(); } catch (e) { }
                         }
-                    }, 30000);
-                    break;
-                default:
-                    console.log('🧊 Unknown ICE state:', iceState);
+                    }, 15000);
                     break;
             }
         };
 
-        // ICE candidate events
         this.pc.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('🍦 Sending ICE candidate:', event.candidate.type);
-                this.socket.emit('signal', {
-                    type: 'ice-candidate',
-                    payload: event.candidate,
-                });
-            } else {
-                console.log('🍦 All ICE candidates sent');
+                this.socket.emit('signal', { type: 'ice-candidate', payload: event.candidate });
             }
         };
 
-        // ICE gathering state
-        this.pc.onicegatheringstatechange = () => {
-            console.log('📊 ICE gathering state:', this.pc?.iceGatheringState);
-        };
-
-        // Signaling state
-        this.pc.onsignalingstatechange = () => {
-            console.log('📶 Signaling state:', this.pc?.signalingState);
-        };
-
-        // Remote track received
         this.pc.ontrack = (event) => {
-            console.log('📹 Remote track received:', event.track.kind, event.track.label);
-
             if (this.remoteStream) {
-                // Add track to existing remote stream
-                try {
-                    this.remoteStream.addTrack(event.track);
-                    console.log('➕ Track added to existing remote stream');
-                } catch (e) {
-                    console.log('Could not add track, recreating stream');
+                try { this.remoteStream.addTrack(event.track); } catch (e) {
                     this.remoteStream = new MediaStream();
                     this.remoteStream.addTrack(event.track);
                 }
-            } else if (event.streams && event.streams[0]) {
+            } else if (event.streams?.[0]) {
                 this.remoteStream = event.streams[0];
-                console.log('📥 New remote stream received');
+            } else {
+                this.remoteStream = new MediaStream();
+                this.remoteStream.addTrack(event.track);
             }
-
-            // Notify UI about the remote stream
-            if (this.remoteStream) {
-                this.onRemoteStream?.(this.remoteStream);
-            }
+            if (this.remoteStream) this.onRemoteStream?.(this.remoteStream);
         };
+    }
 
-        console.log('✅ Peer connection created');
+    setupDataChannelListeners() {
+        if (!this.dataChannel) return;
+        this.dataChannel.onopen = () => console.log('🚀 Data Channel Open');
+        this.dataChannel.onclose = () => console.log('🛑 Data Channel Closed');
+        this.dataChannel.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'touch') this.onTouchReceived?.(data);
+            } catch (e) { }
+        };
     }
 
     addLocalTracks() {
-        if (!this.pc || !this.localStream) {
-            console.warn('⚠️ Cannot add tracks - no PC or local stream');
-            return;
-        }
-
-        console.log('➕ Adding local tracks to peer connection...');
-        this.localStream.getTracks().forEach((track) => {
+        if (!this.pc || !this.localStream) return;
+        this.localStream.getTracks().forEach(track => {
             if (track.readyState === 'live') {
-                try {
-                    this.pc.addTrack(track, this.localStream);
-                    console.log(`  ✅ Added ${track.kind}: ${track.label}`);
-                } catch (e) {
-                    console.error(`  ❌ Failed to add ${track.kind}:`, e);
-                }
+                try { this.pc.addTrack(track, this.localStream); } catch (e) { }
             }
         });
     }
 
+    // ✅ FIXED: Error callbacks notify UI when offer/answer fail
     async createOffer() {
         try {
-            console.log('📤 Creating offer...');
-            const offer = await this.pc.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: true,
-            });
+            const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
             await this.pc.setLocalDescription(offer);
-            console.log('✅ Local description set (offer)');
             this.socket.emit('signal', { type: 'offer', payload: offer });
         } catch (error) {
-            console.error('❌ Failed to create offer:', error);
-            this.onError?.('Failed to establish connection. Please try again.');
+            console.error('❌ Offer failed:', error);
+            this.onError?.('Failed to establish connection. Please try restarting the call.');
         }
     }
 
+    // ✅ FIXED: Error callbacks notify UI when offer/answer fail
     async createAnswer() {
         try {
-            console.log('📤 Creating answer...');
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
-            console.log('✅ Local description set (answer)');
             this.socket.emit('signal', { type: 'answer', payload: answer });
         } catch (error) {
-            console.error('❌ Failed to create answer:', error);
-            this.onError?.('Failed to establish connection. Please try again.');
+            console.error('❌ Answer failed:', error);
+            this.onError?.('Failed to establish connection. Please try restarting the call.');
         }
     }
 
     async handleSignal(type, payload) {
         try {
-            console.log('📡 Handling signal:', type);
-
             switch (type) {
                 case 'offer':
-                    console.log('📥 Received offer');
-                    // Create peer connection if needed
                     if (!this.pc || this.pc.connectionState === 'closed') {
                         this.isCallInitiator = false;
                         this.createPeerConnection();
                         this.addLocalTracks();
                     }
                     await this.pc.setRemoteDescription(new RTCSessionDescription(payload));
-                    console.log('✅ Remote description set (offer)');
                     await this.createAnswer();
                     break;
-
                 case 'answer':
-                    console.log('📥 Received answer');
                     await this.pc.setRemoteDescription(new RTCSessionDescription(payload));
-                    console.log('✅ Remote description set (answer)');
                     break;
-
                 case 'ice-candidate':
-                    if (payload && payload.candidate) {
-                        console.log('📥 Received ICE candidate:', payload.type || 'unknown');
-                        try {
-                            await this.pc?.addIceCandidate(new RTCIceCandidate(payload));
-                            console.log('✅ ICE candidate added');
-                        } catch (e) {
-                            console.error('❌ Failed to add ICE candidate:', e);
-                        }
-                    }
-                    break;
-
-                default:
-                    console.warn('⚠️ Unknown signal type:', type);
+                    if (payload?.candidate) await this.pc?.addIceCandidate(new RTCIceCandidate(payload));
                     break;
             }
         } catch (error) {
-            console.error('❌ Signal handling error:', error);
+            console.error('❌ Signal error:', error);
+            this.onError?.('Connection error. Please try again.');
         }
     }
-
-    // ============ CLEANUP ============
 
     cleanup() {
-        console.log('🧹 Cleaning up...');
-
-        // Clear timeout
-        if (this.connectionTimeout) {
-            clearTimeout(this.connectionTimeout);
-            this.connectionTimeout = null;
-        }
-
-        // Stop media streams
+        if (this.connectionTimeout) { clearTimeout(this.connectionTimeout); this.connectionTimeout = null; }
         this.stopLocalStream();
-
-        // Clear remote stream
         this.remoteStream = null;
-
-        // Close peer connection
-        if (this.pc) {
-            this.pc.close();
-            this.pc = null;
-        }
-
+        if (this.dataChannel) { this.dataChannel.close(); this.dataChannel = null; }
+        if (this.pc) { this.pc.close(); this.pc = null; }
         this.isCallInitiator = false;
-        console.log('✅ Cleanup complete');
     }
 
-    // ============ ROOM MANAGEMENT ============
-
-    createRoom() {
-        console.log('🏠 Creating room');
-        this.socket.emit('create-room');
-    }
-
-    joinRoom(roomId) {
-        console.log('🚪 Joining room:', roomId);
-        this.socket.emit('join-room', { roomId: roomId.toUpperCase() });
-    }
-
-    leaveRoom() {
-        console.log('👋 Leaving room');
-        this.endCall();
-        this.socket.emit('leave-room');
-        this.cleanup();
-    }
-
-    disconnect() {
-        console.log('🔌 Disconnecting');
-        this.leaveRoom();
-        if (this.socket) {
-            this.socket.disconnect();
-            this.socket = null;
-        }
-    }
+    createRoom() { this.socket.emit('create-room'); }
+    joinRoom(roomId) { this.socket.emit('join-room', { roomId: roomId.toUpperCase() }); }
+    leaveRoom() { this.endCall(); this.socket.emit('leave-room'); this.cleanup(); }
+    disconnect() { this.leaveRoom(); if (this.socket) { this.socket.disconnect(); this.socket = null; } }
 }
 
 export default WebRTCService;

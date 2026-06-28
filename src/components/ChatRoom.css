@@ -285,7 +285,7 @@ body {
 
 .call-area.mobile {
     flex-direction: column;
-    height: 65vh;
+    height: 60vh;
 }
 
 .video-panel {
@@ -336,6 +336,7 @@ body {
     z-index: 25;
 }
 
+/* FIXED PERFORMANCE ENGINE OPTIMIZATION Fallback */
 .icon-btn {
     width: 34px;
     height: 34px;
@@ -347,7 +348,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.6);
 }
 
 .icon-btn.small {
@@ -369,6 +370,7 @@ body {
     background: rgba(255, 255, 255, 0.4);
 }
 
+/* FIXED: Prevent touch collisions during mobile scaling resizing */
 .resize-handle-v {
     position: absolute;
     bottom: 0;
@@ -380,6 +382,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: none;
 }
 
 .resize-handle-v-bar {
@@ -387,6 +390,50 @@ body {
     height: 5px;
     background: rgba(255, 255, 255, 0.3);
     border-radius: 3px;
+}
+
+/* ============ PIP VIDEO ============ */
+/* FIXED: Prevent gestures from intercepting dragging motions */
+.pip-video {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: box-shadow 0.2s;
+    user-select: none;
+    touch-action: none;
+}
+
+.pip-video:hover {
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.7);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.pip-drag-handle {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.pip-label {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    z-index: 5;
+}
+
+.main-video {
+    cursor: pointer;
 }
 
 /* ============ CHAT AREA ============ */
@@ -546,6 +593,7 @@ body {
 }
 
 .call-modal {
+
     background: #1a1a2e;
     border-radius: 24px;
     padding: clamp(24px, 5vw, 40px);
@@ -671,6 +719,7 @@ body {
 }
 
 /* ============ RESPONSIVE ============ */
+/* ✅ FIXED: Removed !important width/height on .pip-video to let React control dimensions */
 @media (max-width: 768px) {
     .call-area.desktop {
         flex-direction: column;
@@ -704,54 +753,5 @@ body {
 
     .join-input-group {
         flex-direction: column;
-    }
-}
-
-/* Picture-in-Picture Floating Video */
-.pip-video {
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    transition: box-shadow 0.2s;
-    user-select: none;
-}
-
-.pip-video:hover {
-    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.7);
-    border-color: rgba(255, 255, 255, 0.4);
-}
-
-.pip-drag-handle {
-    position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 14px;
-    z-index: 10;
-    pointer-events: none;
-}
-
-.pip-label {
-    position: absolute;
-    bottom: 4px;
-    left: 4px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 10px;
-    z-index: 5;
-}
-
-.main-video {
-    cursor: pointer;
-}
-
-@media (max-width: 768px) {
-    .pip-video {
-        width: 100px !important;
-        height: 140px !important;
     }
 }

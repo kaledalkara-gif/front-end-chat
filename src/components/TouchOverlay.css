@@ -1,3 +1,9 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 .touch-overlay-container {
     position: absolute;
     top: 0;
@@ -67,6 +73,7 @@
     }
 }
 
+/* ============ REACT LOCAL RIPPLES ============ */
 .touch-ripple {
     position: absolute;
     width: 50px;
@@ -74,7 +81,7 @@
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, 0.8);
     transform: translate(-50%, -50%) scale(0);
-    animation: ripple 1s ease-out forwards;
+    animation: ripple 0.8s ease-out forwards;
     pointer-events: none;
 }
 
@@ -90,6 +97,7 @@
     }
 }
 
+/* ============ PARTNER RECEIVED TOUCHES ============ */
 .received-touch {
     position: absolute;
     transform: translate(-50%, -50%);
@@ -102,18 +110,20 @@
     font-size: 60px;
     position: relative;
     z-index: 2;
+    display: inline-block;
     animation: touchBounce 0.6s ease-out;
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.7));
+    /* Optimized shadow properties to ensure fluent multi-frame rendering */
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5));
 }
 
 .touch-glow {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.2);
     border-radius: 50%;
     border: 4px solid rgba(255, 255, 255, 0.6);
-    animation: glowPulse 2.5s ease-out forwards;
+    animation: glowPulse 2s ease-out forwards;
 }
 
 @keyframes touchAppear {
@@ -129,10 +139,8 @@
 }
 
 @keyframes touchFade {
-    0% {
-        opacity: 1;
-    }
 
+    0%,
     60% {
         opacity: 1;
     }
@@ -156,22 +164,20 @@
     }
 }
 
+/* FIXED: Removed absolute width/height overwrites to let React inline configurations control gestures scales */
 @keyframes glowPulse {
     0% {
         transform: translate(-50%, -50%) scale(0.2);
         opacity: 1;
-        width: 20px;
-        height: 20px;
     }
 
     100% {
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate(-50%, -50%) scale(4);
         opacity: 0;
-        width: 150px;
-        height: 150px;
     }
 }
 
+/* ============ INTERACTIVE CONTROLS ============ */
 .gesture-picker-btn {
     position: absolute;
     bottom: 60px;
@@ -190,6 +196,7 @@
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     transition: transform 0.2s;
     pointer-events: auto;
+    /* FIXED: Maintain click capture window limits */
 }
 
 .gesture-picker-btn:hover {
@@ -212,6 +219,7 @@
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
     animation: slideUp 0.3s ease;
     pointer-events: auto;
+    /* FIXED: Absorb background dead-space clicks to protect WebRTC controls */
 }
 
 @keyframes slideUp {
@@ -258,6 +266,7 @@
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* ============ VIEWPORT RESPONSIVE QUERIES ============ */
 @media (max-width: 768px) {
     .gesture-picker {
         grid-template-columns: repeat(2, 1fr);

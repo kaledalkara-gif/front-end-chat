@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { TOUCH_PATTERNS } from '../services/HapticService';
 import './TouchOverlay.css';
 
@@ -6,25 +6,59 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
     const [hasTouched, setHasTouched] = useState(false);
     const [selectedPattern, setSelectedPattern] = useState('touch');
     const [showPicker, setShowPicker] = useState(false);
-    const overlayRef = useRef(null);
 
-    // When user touches the overlay
+    // High-performance local state pool to handle ripples without direct DOM injections
+    const [localRipples, setLocalRipples] = useState([]);
+
+    const overlayRef = useRef(null);
+    const isMouseDownRef = useRef(false);
+    const hintHiddenRef = useRef(false);
+
+    // High-Performance Ripple Factory
+    const createRipple = useCallback((x, y) => {
+        const rippleId = `${Date.now()}-${Math.random()}`;
+        const newRipple = {
+            id: rippleId,
+            x,
+            y,
+            color: TOUCH_PATTERNS[selectedPattern]?.color || '#fff'
+        };
+
+        setLocalRipples(prev => [...prev, newRipple]);
+
+        // Clean up memory after animation finishes
+        setTimeout(() => {
+            setLocalRipples(prev => prev.filter(r => r.id !== rippleId));
+        }, 800);
+    }, [selectedPattern]);
+
+    // Unified Pointer Interaction Core Logic
     const handleTouch = useCallback((e) => {
         if (!isVisible) return;
-        e.preventDefault();
 
-        // Hide hint after first touch
-        if (!hasTouched) setHasTouched(true);
+        // Prevent default scrolling only during active overlay interactions
+        if (e.cancelable) e.preventDefault();
 
-        const touch = e.touches ? e.touches[0] : e;
+        // FIXED: Prevent state re-render floods during rapid sliding interactions
+        if (!hintHiddenRef.current) {
+            hintHiddenRef.current = true;
+            setHasTouched(true);
+        }
+
         const rect = overlayRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        // Calculate relative position (0 to 1)
-        const x = (touch.clientX - rect.left) / rect.width;
-        const y = (touch.clientY - rect.top) / rect.height;
+        // Support both mobile touch vectors and desktop click profiles adaptively
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        // Send touch event to partner
+        const localX = clientX - rect.left;
+        const localY = clientY - rect.top;
+
+        // Calculate standardized relative positioning coordinates (0.0 to 1.0)
+        const x = Math.max(0, Math.min(1, localX / rect.width));
+        const y = Math.max(0, Math.min(1, localY / rect.height));
+
         onTouchSend?.({
             x,
             y,
@@ -32,21 +66,25 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
             timestamp: Date.now(),
         });
 
-        // Create local ripple effect
-        createRipple(touch.clientX - rect.left, touch.clientY - rect.top);
-    }, [isVisible, selectedPattern, onTouchSend]);
+        createRipple(localX, localY);
+    }, [isVisible, selectedPattern, onTouchSend, createRipple]);
 
-    // Ripple effect on touch
-    const createRipple = (x, y) => {
-        const ripple = document.createElement('div');
-        ripple.className = 'touch-ripple';
-        ripple.style.left = x + 'px';
-        ripple.style.top = y + 'px';
-        ripple.style.borderColor = TOUCH_PATTERNS[selectedPattern]?.color || '#fff';
-        overlayRef.current?.appendChild(ripple);
-
-        setTimeout(() => ripple.remove(), 800);
+    // Desktop Mouse Drag Controllers
+    const handleMouseDown = (e) => {
+        isMouseDownRef.current = true;
+        handleTouch(e);
     };
+
+    const handleMouseMove = (e) => {
+        if (!isMouseDownRef.current) return;
+        handleTouch(e);
+    };
+
+    useEffect(() => {
+        const handleMouseUp = () => { isMouseDownRef.current = false; };
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => window.removeEventListener('mouseup', handleMouseUp);
+    }, []);
 
     if (!isVisible) return null;
 
@@ -64,7 +102,7 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
                     }}
                 >
                     <span className="touch-emoji">
-                        {TOUCH_PATTERNS[touch.pattern]?.emoji || '💗'}
+                        {TOUCH_PATTERNS[touch.pattern]?.emoji || '❤️'}
                     </span>
                     <div
                         className="touch-glow"
@@ -77,13 +115,29 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
                 </div>
             ))}
 
-            {/* Touch-sensitive area */}
+            {/* High-Performance React Local Ripples Layout Mapper */}
+            {localRipples.map(ripple => (
+                <div
+                    key={ripple.id}
+                    className="touch-ripple"
+                    style={{
+                        position: 'absolute',
+                        left: `${ripple.x}px`,
+                        top: `${ripple.y}px`,
+                        borderColor: ripple.color,
+                        pointerEvents: 'none'
+                    }}
+                />
+            ))}
+
+            {/* Touch-sensitive interactive window area */}
             <div
                 ref={overlayRef}
                 className={`touch-area ${hasTouched ? 'touched' : ''}`}
                 onTouchStart={handleTouch}
                 onTouchMove={handleTouch}
-                onMouseDown={handleTouch}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
             >
                 <div className="touch-hint">
                     <span>Touch here to feel each other</span>
@@ -101,7 +155,7 @@ const TouchOverlay = ({ onTouchSend, receivedTouches, isVisible }) => {
                 <span>{TOUCH_PATTERNS[selectedPattern]?.label || 'Touch'}</span>
             </button>
 
-            {/* Gesture Picker */}
+            {/* Gesture Selection Picker Dropdown Overlay */}
             {showPicker && (
                 <div className="gesture-picker">
                     {Object.entries(TOUCH_PATTERNS).map(([key, pattern]) => (

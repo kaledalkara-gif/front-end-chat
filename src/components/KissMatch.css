@@ -5,7 +5,6 @@
     z-index: 100;
 }
 
-/* Explosion rings */
 .kiss-explosion {
     position: relative;
     width: 0;
@@ -14,11 +13,11 @@
 
 .explosion-core {
     position: absolute;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0);
     font-size: 60px;
     animation: corePulse 0.5s ease-out forwards;
     z-index: 3;
-    filter: drop-shadow(0 0 20px rgba(255, 64, 129, 0.8));
+    filter: drop-shadow(0 4px 10px rgba(255, 64, 129, 0.5));
 }
 
 @keyframes corePulse {
@@ -44,6 +43,8 @@
     border: 3px solid rgba(255, 64, 129, 0.8);
     transform: translate(-50%, -50%);
     animation: ringExpand 1.5s ease-out forwards;
+    /* FIXED: Pause animation by default to prevent early auto-play desyncs */
+    animation-play-state: paused;
 }
 
 .ring-1 {
@@ -74,14 +75,15 @@
     }
 }
 
-/* Floating hearts */
 .floating-heart {
     position: absolute;
     font-size: var(--size);
     animation: floatUp 2.5s ease-out forwards;
     animation-delay: var(--delay);
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0);
     z-index: 2;
+    /* FIXED: Hold engine initialization until state triggers activate */
+    animation-play-state: paused;
 }
 
 @keyframes floatUp {
@@ -101,7 +103,6 @@
     }
 }
 
-/* Sparkle particles */
 .spark-particle {
     position: absolute;
     width: 4px;
@@ -111,26 +112,30 @@
     animation: sparkle 1s ease-out forwards;
     animation-delay: var(--delay);
     transform: translate(-50%, -50%);
+    /* FIXED: Stabilize particle bursts timeline tracks */
+    animation-play-state: paused;
 }
 
 @keyframes sparkle {
     0% {
-        transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0);
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(1);
         opacity: 1;
     }
 
     100% {
-        transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance));
+        transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance)) scale(0.2);
         opacity: 0;
     }
 }
 
-/* Phase transitions */
+/* ============ STABLE PHASE INTERACTION TRIGGERS ============ */
 .phase-spark .explosion-core {
     animation: corePulse 0.5s ease-out forwards;
 }
 
-.phase-explosion .explosion-ring {
+/* FIXED: Unified triggers cleanly release animation tracks precisely on JS state transitions */
+.phase-explosion .explosion-ring,
+.phase-explosion .spark-particle {
     animation-play-state: running;
 }
 
