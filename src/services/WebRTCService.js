@@ -48,7 +48,10 @@ class WebRTCService {
         });
 
         this.socket.on('draw-stroke', (data) => this.onDrawStrokeReceived?.(data));
-        this.socket.on('clear-canvas', () => this.onClearCanvasReceived?.());
+        this.socket.on('clear-canvas', () => {
+            console.log('🧹 Clear-canvas received via socket');
+            this.onClearCanvasReceived?.();
+        });
 
         this.socket.on('connect', () => {
             console.log('🟢 Connected to server:', this.socket.id);
@@ -405,7 +408,10 @@ class WebRTCService {
                 if (data.type === 'touch') this.onTouchReceived?.(data);
                 if (data.type === 'love-note') this.onLoveNoteReceived?.(data);
                 if (data.type === 'draw-stroke') this.onDrawStrokeReceived?.(data);
-                if (data.type === 'clear-canvas') this.onClearCanvasReceived?.();
+                if (data.type === 'clear-canvas') {
+                    console.log('🧹 Clear-canvas received via data channel');
+                    this.onClearCanvasReceived?.();
+                }
             } catch (e) { }
         };
     }

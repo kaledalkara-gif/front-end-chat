@@ -97,6 +97,19 @@ const DrawCanvas = ({ isVisible, drawService, onSendStroke, onClearCanvas, recei
         }
     }, [receivedStrokes, drawStroke]);
 
+    // Listen for clear canvas commands from draw service
+    useEffect(() => {
+        if (drawService) {
+            drawService.onClearCanvas = () => {
+                const ctx = ctxRef.current;
+                const canvas = canvasRef.current;
+                if (ctx && canvas) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            };
+        }
+    }, [drawService]);
+
     // Precise coordinate parsing matching scaled boundaries
     const getPosition = useCallback((e) => {
         const canvas = canvasRef.current;

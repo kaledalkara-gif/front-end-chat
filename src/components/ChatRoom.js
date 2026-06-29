@@ -104,6 +104,7 @@ const ChatRoom = () => {
     };
 
     const handleClearCanvas = () => {
+        console.log('🧹 Sending clear canvas');
         webrtcService.current?.sendClearCanvas?.();
     };
     const handleCompleteKiss = useCallback((matchId) => {
@@ -155,6 +156,7 @@ const ChatRoom = () => {
         };
 
         service.onClearCanvasReceived = () => {
+            console.log('🧹 Clear received in ChatRoom');  // Add this
             setReceivedDrawStrokes([]);
             drawSyncRef.current?.clearCanvas();
         };
