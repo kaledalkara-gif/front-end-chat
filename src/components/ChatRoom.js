@@ -7,6 +7,8 @@ import KissMatch from './KissMatch';
 import MusicPlayer from './MusicPlayer';
 import { MusicSyncService } from '../services/MusicSyncService';
 import LoveNotes from './LoveNotes';
+import DrawCanvas from './DrawCanvas';
+import { DrawSyncService } from '../services/DrawSyncService';
 import './ChatRoom.css';
 
 
@@ -71,6 +73,8 @@ const ChatRoom = () => {
     const [showMusicPlayer, setShowMusicPlayer] = useState(false);
     const [sentLoveNotes, setSentLoveNotes] = useState([]);
     const [receivedLoveNotes, setReceivedLoveNotes] = useState([]);
+    const [showDrawCanvas, setShowDrawCanvas] = useState(false);
+    const [receivedDrawStrokes, setReceivedDrawStrokes] = useState([]);
 
     const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
@@ -83,12 +87,25 @@ const ChatRoom = () => {
     const dragStart = useRef({ startX: 0, startY: 0, startPipX: 0, startPipY: 0 });
     const resizeStart = useRef({ startY: 0, startHeight: 0 });
     const musicSyncRef = useRef(new MusicSyncService());
+    const drawSyncRef = useRef(new DrawSyncService());
 
     const pipIsLocal = !mainIsLocal;
     const showMainOff = mainIsLocal ? isCameraOff : false;
     const showPipOff = pipIsLocal ? isCameraOff : false;
     const pipSize = isMobile ? PIP_SIZE.mobile : PIP_SIZE.desktop;
 
+
+    const handleSendStroke = (stroke) => {
+        if (stroke) {
+            webrtcService.current?.sendDrawStroke?.(stroke);
+        } else {
+            setShowDrawCanvas(prev => !prev);
+        }
+    };
+
+    const handleClearCanvas = () => {
+        webrtcService.current?.sendClearCanvas?.();
+    };
     const handleCompleteKiss = useCallback((matchId) => {
         setKissMatches(prev => prev.filter(k => k.id !== matchId));
     }, []);
@@ -133,6 +150,14 @@ const ChatRoom = () => {
         service.onCallRejected = () => { setCallState('idle'); setIncomingCallType(null); clearMedia(); };
         service.onCallEnded = () => { setCallState('idle'); clearMedia(); };
         service.onPeerLeft = () => { setIsConnected(false); setCallState('idle'); clearMedia(); };
+        service.onDrawStrokeReceived = (stroke) => {
+            setReceivedDrawStrokes(prev => [...prev.slice(-10), stroke]);
+        };
+
+        service.onClearCanvasReceived = () => {
+            setReceivedDrawStrokes([]);
+            drawSyncRef.current?.clearCanvas();
+        };
 
         service.onTouchReceived = (touchData) => {
             const touchWithId = { ...touchData, id: Date.now() + Math.random() };
@@ -417,6 +442,11 @@ const ChatRoom = () => {
                                 🎵 Music
                             </button>
                         )}
+                        {isConnected && (
+                            <button onClick={() => setShowDrawCanvas(!showDrawCanvas)} className="btn btn-secondary">
+                                🎨 Draw
+                            </button>
+                        )}
                         {isInCall && (
                             <div ref={callAreaRef} className={`call-area ${isMobile ? 'mobile' : 'desktop'}`} style={{ height: isMobile ? '60vh' : `${callHeight}vh` }}>
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
@@ -458,6 +488,13 @@ const ChatRoom = () => {
                                     isVisible={isInCall}
                                     onSendNote={handleSendLoveNote}
                                     receivedNotes={receivedLoveNotes}
+                                />
+                                <DrawCanvas
+                                    isVisible={showDrawCanvas && isInCall}
+                                    drawService={drawSyncRef.current}
+                                    onSendStroke={handleSendStroke}
+                                    onClearCanvas={handleClearCanvas}
+                                    receivedStrokes={receivedDrawStrokes}
                                 />
                                 <TouchOverlay isVisible={isInCall} onTouchSend={(td) => { webrtcService.current?.sendTouchData(td); if (td.pattern === 'kiss') { kissSyncRef.current.registerMyTouch(td.timestamp || Date.now(), td.x, td.y, td.pattern); setTimeout(() => kissSyncRef.current.removeMyTouch(td.timestamp || Date.now()), 2000); } }} receivedTouches={receivedTouches} />
                             </div>

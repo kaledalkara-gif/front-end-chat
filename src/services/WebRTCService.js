@@ -12,6 +12,10 @@ class WebRTCService {
         this.isCallInitiator = false;
         this.connectionTimeout = null;
         this.onLoveNoteReceived = null;
+        this.onDrawStrokeReceived = null;
+        this.onClearCanvasReceived = null;
+        this.onDrawStrokeReceived = null;
+        this.onClearCanvasReceived = null;
 
         this.onMessage = null;
         this.onRemoteStream = null;
@@ -42,6 +46,9 @@ class WebRTCService {
             pingInterval: 10000,
             pingTimeout: 60000,
         });
+
+        this.socket.on('draw-stroke', (data) => this.onDrawStrokeReceived?.(data));
+        this.socket.on('clear-canvas', () => this.onClearCanvasReceived?.());
 
         this.socket.on('connect', () => {
             console.log('🟢 Connected to server:', this.socket.id);
@@ -133,6 +140,22 @@ class WebRTCService {
         this.socket.on('love-note', (data) => {
             this.onLoveNoteReceived?.(data);
         });
+    }
+
+    sendDrawStroke(stroke) {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'draw-stroke', ...stroke }));
+        } else {
+            this.socket.emit('draw-stroke', stroke);
+        }
+    }
+
+    sendClearCanvas() {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'clear-canvas' }));
+        } else {
+            this.socket.emit('clear-canvas');
+        }
     }
 
     sendTextMessage(text) {
@@ -372,6 +395,7 @@ class WebRTCService {
     }
 
     setupDataChannelListeners() {
+
         if (!this.dataChannel) return;
         this.dataChannel.onopen = () => console.log('🚀 Data Channel Open');
         this.dataChannel.onclose = () => console.log('🛑 Data Channel Closed');
@@ -380,6 +404,8 @@ class WebRTCService {
                 const data = JSON.parse(event.data);
                 if (data.type === 'touch') this.onTouchReceived?.(data);
                 if (data.type === 'love-note') this.onLoveNoteReceived?.(data);
+                if (data.type === 'draw-stroke') this.onDrawStrokeReceived?.(data);
+                if (data.type === 'clear-canvas') this.onClearCanvasReceived?.();
             } catch (e) { }
         };
     }
