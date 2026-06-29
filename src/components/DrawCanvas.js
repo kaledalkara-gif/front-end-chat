@@ -21,22 +21,6 @@ const DrawCanvas = ({ isVisible, drawService, onSendStroke, onClearCanvas, recei
         lastY: 0
     });
 
-    // Sync React state to tracking refs immediately
-    useEffect(() => {
-        stateRef.current.color = currentColor;
-        stateRef.current.size = currentSize;
-    }, [currentColor, currentSize]);
-
-    // Decoupled redraw function
-    const redrawAll = useCallback(() => {
-        const ctx = ctxRef.current;
-        const canvas = canvasRef.current;
-        if (!ctx || !canvas) return;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawService?.getAllDrawings().forEach(stroke => drawStroke(stroke));
-    }, [drawService, drawStroke]);
-
     // Decoupled single-stroke draw function
     const drawStroke = useCallback((stroke) => {
         const ctx = ctxRef.current;
@@ -52,6 +36,22 @@ const DrawCanvas = ({ isVisible, drawService, onSendStroke, onClearCanvas, recei
         }
         ctx.stroke();
     }, []);
+
+    // Sync React state to tracking refs immediately
+    useEffect(() => {
+        stateRef.current.color = currentColor;
+        stateRef.current.size = currentSize;
+    }, [currentColor, currentSize]);
+
+    // Decoupled redraw function
+    const redrawAll = useCallback(() => {
+        const ctx = ctxRef.current;
+        const canvas = canvasRef.current;
+        if (!ctx || !canvas) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawService?.getAllDrawings().forEach(stroke => drawStroke(stroke));
+    }, [drawService, drawStroke]);
 
     // Handle Canvas Initialization and Resizing (Supports HDPI/Retina displays)
     useEffect(() => {
