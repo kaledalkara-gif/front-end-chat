@@ -142,3 +142,124 @@
     font-size: 14px;
     cursor: pointer;
 }
+
+.custom-url-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.custom-url-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.custom-url-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.url-input,
+.name-input {
+    padding: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-size: 14px;
+    outline: none;
+}
+
+.url-input:focus,
+.name-input:focus {
+    border-color: #667eea;
+}
+
+.url-input::placeholder,
+.name-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.custom-url-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-play-custom {
+    flex: 1;
+    padding: 10px;
+    background: #4caf50;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-cancel-custom {
+    flex: 1;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+}
+
+.url-hint {
+    color: #888;
+    font-size: 11px;
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+.url-hint a {
+    color: #667eea;
+    text-decoration: underline;
+}
+
+.section-title {
+    color: #888;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.player-loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    z-index: 50;
+    animation: pulse 1s infinite;
+}
