@@ -122,7 +122,7 @@ const LoveNotes = ({ isVisible, onSendNote, receivedNotes }) => {
                         maxLength={50}
                         autoFocus
                     />
-                    <span className="char-count" aria-live="evaluative">
+                    <span className="char-count" aria-live="polite">
                         {noteText.length} / 50
                     </span>
                     <div className="love-note-actions">

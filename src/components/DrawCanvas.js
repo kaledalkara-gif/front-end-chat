@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { DrawSyncService, DRAW_COLORS, BRUSH_SIZES } from '../services/DrawSyncService';
+import { DRAW_COLORS, BRUSH_SIZES } from '../services/DrawSyncService';
 import './DrawCanvas.css';
 
 const DrawCanvas = ({ isVisible, drawService, onSendStroke, onClearCanvas, receivedStrokes }) => {
@@ -35,7 +35,7 @@ const DrawCanvas = ({ isVisible, drawService, onSendStroke, onClearCanvas, recei
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawService?.getAllDrawings().forEach(stroke => drawStroke(stroke));
-    }, [drawService]);
+    }, [drawService, drawStroke]);
 
     // Decoupled single-stroke draw function
     const drawStroke = useCallback((stroke) => {

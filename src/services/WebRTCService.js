@@ -372,6 +372,8 @@ class WebRTCService {
                         }
                     }, 15000);
                     break;
+                default:
+                    break;
             }
         };
 
@@ -485,6 +487,8 @@ class WebRTCService {
                             this.iceQueue.push(payload); // Buffer until remote description is set
                         }
                     }
+                    break;
+                default:
                     break;
             }
         } catch (error) {

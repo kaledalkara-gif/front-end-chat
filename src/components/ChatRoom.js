@@ -71,7 +71,7 @@ const ChatRoom = () => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
     const [showMusicPlayer, setShowMusicPlayer] = useState(false);
-    const [sentLoveNotes, setSentLoveNotes] = useState([]);
+    //const [sentLoveNotes, setSentLoveNotes] = useState([]);
     const [receivedLoveNotes, setReceivedLoveNotes] = useState([]);
     const [showDrawCanvas, setShowDrawCanvas] = useState(false);
     const [receivedDrawStrokes, setReceivedDrawStrokes] = useState([]);
@@ -241,7 +241,7 @@ const ChatRoom = () => {
             if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
             if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
         }
-    }, [mainIsLocal, callType, localStream, remoteStream]);
+    }, [mainIsLocal, pipIsLocal, callType, localStream, remoteStream]);
 
     // ✅ BULLETPROOF: PiP corner snapping
     const snapToCorner = useCallback((x, y, pw, ph) => {
