@@ -4,6 +4,8 @@ import { HapticService, TOUCH_PATTERNS } from '../services/HapticService';
 import { KissSyncService, KISS_MATCH_VIBRATION } from '../services/KissSyncService';
 import TouchOverlay from './TouchOverlay';
 import KissMatch from './KissMatch';
+import MusicPlayer from './MusicPlayer';
+import { MusicSyncService } from '../services/MusicSyncService';
 import './ChatRoom.css';
 
 
@@ -65,6 +67,7 @@ const ChatRoom = () => {
     const [isResizing, setIsResizing] = useState(false);
     const [localStream, setLocalStream] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
+    const [showMusicPlayer, setShowMusicPlayer] = useState(false);
 
     const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
@@ -76,6 +79,7 @@ const ChatRoom = () => {
     const kissSyncRef = useRef(new KissSyncService());
     const dragStart = useRef({ startX: 0, startY: 0, startPipX: 0, startPipY: 0 });
     const resizeStart = useRef({ startY: 0, startHeight: 0 });
+    const musicSyncRef = useRef(new MusicSyncService());
 
     const pipIsLocal = !mainIsLocal;
     const showMainOff = mainIsLocal ? isCameraOff : false;
@@ -322,7 +326,7 @@ const ChatRoom = () => {
     };
 
     const handleRejectCall = () => { webrtcService.current?.rejectCall(); setCallState('idle'); setIncomingCallType(null); };
-    const handleEndCall = () => { webrtcService.current?.endCall(); setCallState('idle'); clearMedia(); setKissMatches([]); setKissCloseness(0); };
+    const handleEndCall = () => { webrtcService.current?.endCall(); setCallState('idle'); clearMedia(); setKissMatches([]); setKissCloseness(0); musicSyncRef.current?.cleanup(); };
 
     const toggleMute = () => {
         const t = localStream?.getAudioTracks()[0];
@@ -350,6 +354,7 @@ const ChatRoom = () => {
         setRoomId('');
         setMessages([]);
         kissSyncRef.current.reset();
+        musicSyncRef.current?.cleanup();
     };
 
     const isInCall = callState === 'in-call' || callState === 'requesting';
@@ -392,7 +397,11 @@ const ChatRoom = () => {
                             {callState === 'in-call' && <button onClick={handleEndCall} className="btn btn-danger">☎️ End Call</button>}
                             <button onClick={handleLeaveRoom} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>👋 Leave</button>
                         </div>
-
+                        {isConnected && (
+                            <button onClick={() => setShowMusicPlayer(!showMusicPlayer)} className="btn btn-secondary">
+                                🎵 Music
+                            </button>
+                        )}
                         {isInCall && (
                             <div ref={callAreaRef} className={`call-area ${isMobile ? 'mobile' : 'desktop'}`} style={{ height: isMobile ? '60vh' : `${callHeight}vh` }}>
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
@@ -425,6 +434,11 @@ const ChatRoom = () => {
                                     />
                                 ))}
 
+                                <MusicPlayer
+                                    isVisible={showMusicPlayer}
+                                    musicService={musicSyncRef.current}
+                                    isConnected={isConnected}
+                                />
                                 <TouchOverlay isVisible={isInCall} onTouchSend={(td) => { webrtcService.current?.sendTouchData(td); if (td.pattern === 'kiss') { kissSyncRef.current.registerMyTouch(td.timestamp || Date.now(), td.x, td.y, td.pattern); setTimeout(() => kissSyncRef.current.removeMyTouch(td.timestamp || Date.now()), 2000); } }} receivedTouches={receivedTouches} />
                             </div>
                         )}
