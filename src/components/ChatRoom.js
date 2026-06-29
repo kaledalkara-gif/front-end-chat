@@ -71,7 +71,7 @@ const ChatRoom = () => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
     const [showMusicPlayer, setShowMusicPlayer] = useState(false);
-    //const [sentLoveNotes, setSentLoveNotes] = useState([]);
+    const [sentLoveNotes, setSentLoveNotes] = useState([]);
     const [receivedLoveNotes, setReceivedLoveNotes] = useState([]);
     const [showDrawCanvas, setShowDrawCanvas] = useState(false);
     const [receivedDrawStrokes, setReceivedDrawStrokes] = useState([]);
