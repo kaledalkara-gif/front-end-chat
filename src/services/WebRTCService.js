@@ -242,15 +242,52 @@ class WebRTCService {
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
+                // Metered.ca (your 500MB)
                 {
-                    urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:80?transport=tcp', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'],
+                    urls: "stun:stun.relay.metered.ca:80",
+                },
+                {
+                    urls: "turn:global.relay.metered.ca:80",
+                    username: "88246c0862ddd651b661cb0e",
+                    credential: "/IznfR0gJpp49ZLR",
+                },
+                {
+                    urls: "turn:global.relay.metered.ca:80?transport=tcp",
+                    username: "88246c0862ddd651b661cb0e",
+                    credential: "/IznfR0gJpp49ZLR",
+                },
+                {
+                    urls: "turn:global.relay.metered.ca:443",
+                    username: "88246c0862ddd651b661cb0e",
+                    credential: "/IznfR0gJpp49ZLR",
+                },
+                {
+                    urls: "turns:global.relay.metered.ca:443?transport=tcp",
+                    username: "88246c0862ddd651b661cb0e",
+                    credential: "/IznfR0gJpp49ZLR",
+                },
+                // Free backup TURN
+                {
+                    urls: [
+                        'turn:openrelay.metered.ca:80?transport=tcp',
+                        'turn:openrelay.metered.ca:443?transport=tcp',
+                    ],
                     username: 'openrelayproject',
                     credential: 'openrelayproject',
+                },
+                // ExpressTURN (free)
+                {
+                    urls: [
+                        'turn:relay1.expressturn.com:3478?transport=tcp',
+                    ],
+                    username: 'efree',
+                    credential: 'efree',
                 },
             ],
             iceTransportPolicy: 'all',
             iceCandidatePoolSize: 8,
         };
+
 
         this.pc = new RTCPeerConnection(configuration);
 
