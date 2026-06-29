@@ -6,6 +6,7 @@ import TouchOverlay from './TouchOverlay';
 import KissMatch from './KissMatch';
 import MusicPlayer from './MusicPlayer';
 import { MusicSyncService } from '../services/MusicSyncService';
+import LoveNotes from './LoveNotes';
 import './ChatRoom.css';
 
 
@@ -68,6 +69,8 @@ const ChatRoom = () => {
     const [localStream, setLocalStream] = useState(null);
     const [remoteStream, setRemoteStream] = useState(null);
     const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+    const [sentLoveNotes, setSentLoveNotes] = useState([]);
+    const [receivedLoveNotes, setReceivedLoveNotes] = useState([]);
 
     const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
@@ -89,6 +92,14 @@ const ChatRoom = () => {
     const handleCompleteKiss = useCallback((matchId) => {
         setKissMatches(prev => prev.filter(k => k.id !== matchId));
     }, []);
+
+    const handleSendLoveNote = (noteData) => {
+        // Show locally
+        setSentLoveNotes(prev => [...prev.slice(-5), { ...noteData, id: Date.now() }]);
+
+        // Send to partner via WebRTC data channel or socket
+        webrtcService.current?.sendLoveNote?.(noteData);
+    };
 
     const clearMedia = useCallback(() => {
         setIsMuted(false);
@@ -132,6 +143,10 @@ const ChatRoom = () => {
                 setTimeout(() => kissSyncRef.current.removePartnerTouch(touchWithId.id), 2000);
             }
             setTimeout(() => setReceivedTouches(prev => prev.filter(t => t.id !== touchWithId.id)), TOUCH_PATTERNS[touchData.pattern]?.duration || 1500);
+        };
+
+        service.onLoveNoteReceived = (noteData) => {
+            setReceivedLoveNotes(prev => [...prev.slice(-5), { ...noteData, id: Date.now() }]);
         };
 
         service.onError = (msg) => console.error(msg);
@@ -438,6 +453,11 @@ const ChatRoom = () => {
                                     isVisible={showMusicPlayer}
                                     musicService={musicSyncRef.current}
                                     isConnected={isConnected}
+                                />
+                                <LoveNotes
+                                    isVisible={isInCall}
+                                    onSendNote={handleSendLoveNote}
+                                    receivedNotes={receivedLoveNotes}
                                 />
                                 <TouchOverlay isVisible={isInCall} onTouchSend={(td) => { webrtcService.current?.sendTouchData(td); if (td.pattern === 'kiss') { kissSyncRef.current.registerMyTouch(td.timestamp || Date.now(), td.x, td.y, td.pattern); setTimeout(() => kissSyncRef.current.removeMyTouch(td.timestamp || Date.now()), 2000); } }} receivedTouches={receivedTouches} />
                             </div>

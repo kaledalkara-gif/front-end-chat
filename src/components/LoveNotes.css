@@ -1,0 +1,258 @@
+.love-notes-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 45;
+    overflow: hidden;
+}
+
+/* Base Note Structural Alignment Setup */
+.love-note {
+    position: absolute;
+    top: var(--start-y);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, var(--color), rgba(255, 255, 255, 0.2));
+    color: white;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    will-change: transform, opacity;
+    /* Informs browser to use GPU path */
+}
+
+/* Uses hardware accelerated translate layer instead of expensive left/right calculations */
+.love-note.sent {
+    left: 0;
+    animation: floatAcross var(--duration) ease-in forwards;
+}
+
+.love-note.received {
+    right: 0;
+    animation: floatAcrossReverse var(--duration) ease-in forwards;
+}
+
+/* High Performance GPU Hardware Accelerated Animations */
+@keyframes floatAcross {
+    0% {
+        opacity: 0;
+        transform: translateX(-300px) scale(0.5) rotate(-5deg);
+    }
+
+    10% {
+        opacity: 1;
+        transform: translateX(0) scale(1.1) rotate(2deg);
+    }
+
+    20% {
+        transform: translateX(50px) scale(1) rotate(0deg);
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateX(calc(100vw + 300px)) scale(0.8) rotate(5deg);
+    }
+}
+
+@keyframes floatAcrossReverse {
+    0% {
+        opacity: 0;
+        transform: translateX(300px) scale(0.5) rotate(5deg);
+    }
+
+    10% {
+        opacity: 1;
+        transform: translateX(0) scale(1.1) rotate(-2deg);
+    }
+
+    20% {
+        transform: translateX(-50px) scale(1) rotate(0deg);
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateX(calc(-100vw - 300px)) scale(0.8) rotate(-5deg);
+    }
+}
+
+.note-emoji {
+    font-size: 18px;
+    animation: bounce 0.6s ease infinite;
+}
+
+.note-text {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Trigger Action Button Block */
+.love-note-trigger {
+    position: absolute;
+    bottom: 70px;
+    right: 70px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #ff4081, #ff1744);
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    pointer-events: auto;
+    box-shadow: 0 4px 20px rgba(255, 64, 129, 0.4);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
+    z-index: 46;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.love-note-trigger:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 30px rgba(255, 64, 129, 0.6);
+}
+
+/* Input Management Panel Interface */
+.love-note-input-container {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 30, 58, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    pointer-events: auto;
+    z-index: 46;
+    width: 90%;
+    max-width: 350px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.love-note-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.love-note-input:focus {
+    border-color: #ff4081;
+}
+
+.love-note-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.char-count {
+    display: block;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    margin: 4px 8px 0 0;
+}
+
+.love-note-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.btn-send-note {
+    flex: 1;
+    padding: 10px;
+    background: linear-gradient(135deg, #ff4081, #ff1744);
+    border: none;
+    border-radius: 25px;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-send-note:hover {
+    opacity: 0.9;
+}
+
+.btn-cancel-note {
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 25px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-cancel-note:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Clean, Consolidated Mobile Layout Adjustments */
+@media (max-width: 768px) {
+    .love-note-trigger {
+        bottom: 60px;
+        right: 16px;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+
+    .love-note-input-container {
+        width: 95%;
+        bottom: 16px;
+    }
+
+    .love-note {
+        font-size: 13px;
+        padding: 6px 12px;
+    }
+}

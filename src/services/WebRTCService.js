@@ -11,6 +11,7 @@ class WebRTCService {
         this.dataChannel = null;
         this.isCallInitiator = false;
         this.connectionTimeout = null;
+        this.onLoveNoteReceived = null;
 
         this.onMessage = null;
         this.onRemoteStream = null;
@@ -26,6 +27,7 @@ class WebRTCService {
         this.onCallRejected = null;
         this.onCallEnded = null;
         this.onTouchReceived = null;
+        this.iceQueue = [];
     }
 
     connect() {
@@ -127,6 +129,10 @@ class WebRTCService {
         this.socket.on('disconnect', (reason) => {
             console.log('🔌 Disconnected:', reason);
         });
+
+        this.socket.on('love-note', (data) => {
+            this.onLoveNoteReceived?.(data);
+        });
     }
 
     sendTextMessage(text) {
@@ -140,6 +146,14 @@ class WebRTCService {
             this.dataChannel.send(JSON.stringify({ type: 'touch', ...touchData }));
         } else {
             this.socket.emit('touch-data', touchData);
+        }
+    }
+
+    sendLoveNote(noteData) {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'love-note', ...noteData }));
+        } else {
+            this.socket.emit('love-note', noteData);
         }
     }
 
@@ -233,6 +247,7 @@ class WebRTCService {
 
     createPeerConnection() {
         if (this.pc) { this.pc.close(); this.pc = null; }
+        this.iceQueue = [];
         if (this.connectionTimeout) { clearTimeout(this.connectionTimeout); this.connectionTimeout = null; }
 
         const configuration = {
@@ -364,6 +379,7 @@ class WebRTCService {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'touch') this.onTouchReceived?.(data);
+                if (data.type === 'love-note') this.onLoveNoteReceived?.(data);
             } catch (e) { }
         };
     }
@@ -401,6 +417,17 @@ class WebRTCService {
         }
     }
 
+    async processIceQueue() {
+        while (this.iceQueue.length > 0) {
+            const candidate = this.iceQueue.shift();
+            try {
+                await this.pc?.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error('Failed to add buffered ICE candidate:', e);
+            }
+        }
+    }
+
     async handleSignal(type, payload) {
         try {
             switch (type) {
@@ -411,13 +438,21 @@ class WebRTCService {
                         this.addLocalTracks();
                     }
                     await this.pc.setRemoteDescription(new RTCSessionDescription(payload));
+                    await this.processIceQueue();
                     await this.createAnswer();
                     break;
                 case 'answer':
                     await this.pc.setRemoteDescription(new RTCSessionDescription(payload));
+                    await this.processIceQueue();
                     break;
                 case 'ice-candidate':
-                    if (payload?.candidate) await this.pc?.addIceCandidate(new RTCIceCandidate(payload));
+                    if (payload?.candidate) {
+                        if (this.pc?.remoteDescription) {
+                            await this.pc.addIceCandidate(new RTCIceCandidate(payload));
+                        } else {
+                            this.iceQueue.push(payload); // Buffer until remote description is set
+                        }
+                    }
                     break;
             }
         } catch (error) {
@@ -427,6 +462,7 @@ class WebRTCService {
     }
 
     cleanup() {
+        this.iceQueue = [];
         if (this.connectionTimeout) { clearTimeout(this.connectionTimeout); this.connectionTimeout = null; }
         this.stopLocalStream();
         this.remoteStream = null;
