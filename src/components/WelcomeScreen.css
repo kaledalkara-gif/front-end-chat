@@ -1,0 +1,140 @@
+.welcome-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+.welcome-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+.welcome-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.welcome-content {
+    text-align: center;
+    color: white;
+    padding: 20px;
+}
+
+.welcome-title {
+    font-size: clamp(28px, 6vw, 48px);
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+    animation: gentleFloat 3s ease-in-out infinite;
+}
+
+@keyframes gentleFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.welcome-hint {
+    font-size: clamp(14px, 3vw, 18px);
+    opacity: 0.8;
+    animation: fadeInOut 2s ease-in-out infinite;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes fadeInOut {
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.progress-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+.progress-ring {
+    width: 100px;
+    height: 100px;
+    position: relative;
+}
+
+.progress-ring svg {
+    width: 100%;
+    height: 100%;
+}
+
+.progress-fill {
+    transition: stroke-dasharray 0.05s linear;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 20px;
+    font-weight: bold;
+    color: #ff4081;
+}
+
+.holding-text {
+    font-size: 14px;
+    opacity: 0.7;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+.welcome-subtitle {
+    margin-top: 30px;
+    font-size: clamp(11px, 2vw, 13px);
+    opacity: 0.5;
+    letter-spacing: 2px;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .welcome-overlay {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .progress-ring {
+        width: 80px;
+        height: 80px;
+    }
+}
