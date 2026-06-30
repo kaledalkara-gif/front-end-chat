@@ -482,6 +482,8 @@ body {
     font-size: clamp(14px, 2.5vw, 16px);
     line-height: 1.5;
     word-break: break-word;
+    direction: auto;
+    text-align: start;
 }
 
 .message.sent .message-bubble {

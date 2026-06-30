@@ -510,7 +510,7 @@ const ChatRoom = () => {
                             </div>
                             <div className="input-area">
                                 <button onClick={() => setShowEmojis(!showEmojis)} className="emoji-toggle-btn">😊</button>
-                                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()} placeholder={isConnected ? "Type a message..." : "Waiting for partner..."} disabled={!isConnected} className="message-input" />
+                                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()} placeholder={isConnected ? "Type a message..." : "Waiting for partner..."} disabled={!isConnected} className="message-input" dir="auto" />
                                 <button onClick={handleSendMessage} disabled={!isConnected} className="send-btn">➤</button>
                                 {showEmojis && <EmojiPicker onSelect={(e) => setInputText(prev => prev + e)} />}
                                 {showEmojis && <div onClick={() => setShowEmojis(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }} />}
