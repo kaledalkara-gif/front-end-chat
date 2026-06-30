@@ -75,6 +75,8 @@ const ChatRoom = () => {
     const [receivedLoveNotes, setReceivedLoveNotes] = useState([]);
     const [showDrawCanvas, setShowDrawCanvas] = useState(false);
     const [receivedDrawStrokes, setReceivedDrawStrokes] = useState([]);
+    const [partnerMuted, setPartnerMuted] = useState(false);
+    const [partnerCameraOff, setPartnerCameraOff] = useState(false);
 
     const webrtcService = useRef(null);
     const mainVideoRef = useRef(null);
@@ -152,6 +154,8 @@ const ChatRoom = () => {
         service.onCallRejected = () => { setCallState('idle'); setIncomingCallType(null); clearMedia(); };
         service.onCallEnded = () => { setCallState('idle'); clearMedia(); };
         service.onPeerLeft = () => { setIsConnected(false); setCallState('idle'); clearMedia(); };
+        service.onPartnerMuted = (muted) => setPartnerMuted(muted);
+        service.onPartnerCameraOff = (off) => setPartnerCameraOff(off);
         service.onDrawStrokeReceived = (stroke) => {
             setReceivedDrawStrokes(prev => [...prev.slice(-10), stroke]);
         };
@@ -373,12 +377,20 @@ const ChatRoom = () => {
 
     const toggleMute = () => {
         const t = localStream?.getAudioTracks()[0];
-        if (t) { t.enabled = !t.enabled; setIsMuted(!t.enabled); }
+        if (t) {
+            t.enabled = !t.enabled;
+            setIsMuted(!t.enabled);
+            webrtcService.current?.sendMuteStatus?.(!t.enabled);
+        }
     };
 
     const toggleCamera = () => {
         const t = localStream?.getVideoTracks()[0];
-        if (t) { t.enabled = !t.enabled; setIsCameraOff(!t.enabled); }
+        if (t) {
+            t.enabled = !t.enabled;
+            setIsCameraOff(!t.enabled);
+            webrtcService.current?.sendCameraStatus?.(!t.enabled);
+        }
     };
 
     const handleSendMessage = () => {
@@ -452,6 +464,45 @@ const ChatRoom = () => {
                         )}
                         {isInCall && (
                             <div ref={callAreaRef} className={`call-area ${isMobile ? 'mobile' : 'desktop'}`} style={{ height: isMobile ? '60vh' : `${callHeight}vh` }}>
+
+                                {/* Partner Status Indicators */}
+                                {isInCall && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '8px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        display: 'flex',
+                                        gap: '8px',
+                                        zIndex: 25,
+                                    }}>
+                                        {partnerMuted && (
+                                            <span style={{
+                                                background: '#f44336',
+                                                color: 'white',
+                                                padding: '4px 12px',
+                                                borderRadius: '15px',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold',
+                                            }}>
+                                                🔇 Partner Muted
+                                            </span>
+                                        )}
+                                        {partnerCameraOff && (
+                                            <span style={{
+                                                background: '#f44336',
+                                                color: 'white',
+                                                padding: '4px 12px',
+                                                borderRadius: '15px',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold',
+                                            }}>
+                                                📷 Partner Camera Off
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="video-panel main-video" style={{ flex: 1 }} onDoubleClick={swapVideos}>
                                     <video ref={mainVideoRef} autoPlay muted={mainIsLocal} playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0 }} />
                                     {showMainOff && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', color: 'white', zIndex: 5, gap: '8px' }}><span style={{ fontSize: '40px' }}>📷</span><span style={{ fontSize: '14px', color: '#f44336', fontWeight: 'bold' }}>Camera Off</span></div>}

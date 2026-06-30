@@ -16,6 +16,8 @@ class WebRTCService {
         this.onClearCanvasReceived = null;
         this.onDrawStrokeReceived = null;
         this.onClearCanvasReceived = null;
+        this.onPartnerMuted = null;
+        this.onPartnerCameraOff = null;
 
         this.onMessage = null;
         this.onRemoteStream = null;
@@ -143,6 +145,8 @@ class WebRTCService {
         this.socket.on('love-note', (data) => {
             this.onLoveNoteReceived?.(data);
         });
+        this.socket.on('mute-status', ({ muted }) => this.onPartnerMuted?.(muted));
+        this.socket.on('camera-status', ({ off }) => this.onPartnerCameraOff?.(off));
     }
 
     sendDrawStroke(stroke) {
@@ -210,6 +214,22 @@ class WebRTCService {
             this.socket.emit('call-rejected');
             this.onError?.(error.message || 'Failed to accept call');
             throw error;
+        }
+    }
+
+    sendMuteStatus(muted) {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'mute-status', muted }));
+        } else {
+            this.socket.emit('mute-status', { muted });
+        }
+    }
+
+    sendCameraStatus(off) {
+        if (this.dataChannel?.readyState === 'open') {
+            this.dataChannel.send(JSON.stringify({ type: 'camera-status', off }));
+        } else {
+            this.socket.emit('camera-status', { off });
         }
     }
 
@@ -410,6 +430,8 @@ class WebRTCService {
                 if (data.type === 'touch') this.onTouchReceived?.(data);
                 if (data.type === 'love-note') this.onLoveNoteReceived?.(data);
                 if (data.type === 'draw-stroke') this.onDrawStrokeReceived?.(data);
+                if (data.type === 'mute-status') this.onPartnerMuted?.(data.muted);
+                if (data.type === 'camera-status') this.onPartnerCameraOff?.(data.off);
                 if (data.type === 'clear-canvas') {
                     console.log('🧹 Clear-canvas received via data channel');
                     this.onClearCanvasReceived?.();
