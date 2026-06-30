@@ -545,6 +545,10 @@ body {
     font-size: clamp(14px, 2.5vw, 16px);
     outline: none;
     resize: none;
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.4;
+    font-family: inherit;
 }
 
 .message-input:focus {

@@ -88,6 +88,7 @@ const ChatRoom = () => {
     const resizeStart = useRef({ startY: 0, startHeight: 0 });
     const musicSyncRef = useRef(new MusicSyncService());
     const drawSyncRef = useRef(new DrawSyncService());
+    const inputRef = useRef(null);
 
     const pipIsLocal = !mainIsLocal;
     const showMainOff = mainIsLocal ? isCameraOff : false;
@@ -510,7 +511,27 @@ const ChatRoom = () => {
                             </div>
                             <div className="input-area">
                                 <button onClick={() => setShowEmojis(!showEmojis)} className="emoji-toggle-btn">😊</button>
-                                <input value={inputText} onChange={e => setInputText(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSendMessage()} placeholder={isConnected ? "Type a message..." : "Waiting for partner..."} disabled={!isConnected} className="message-input" dir="auto" />
+                                <textarea
+                                    ref={inputRef}
+                                    value={inputText}
+                                    onChange={(e) => {
+                                        setInputText(e.target.value);
+                                        // Auto-resize
+                                        e.target.style.height = 'auto';
+                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                    }}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                    placeholder={isConnected ? "Type a message..." : "Waiting for partner..."}
+                                    disabled={!isConnected}
+                                    className="message-input"
+                                    dir="auto"
+                                    rows={1}
+                                />
                                 <button onClick={handleSendMessage} disabled={!isConnected} className="send-btn">➤</button>
                                 {showEmojis && <EmojiPicker onSelect={(e) => setInputText(prev => prev + e)} />}
                                 {showEmojis && <div onClick={() => setShowEmojis(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }} />}
